@@ -40,26 +40,24 @@ keyauthapp = api(
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
-# --- LOGIN FORM ---
-login_container = st.container()
+# --- LOGIN FORM SOLO SE NON AUTENTICATO ---
 if not st.session_state['authenticated']:
-    with login_container:
-        st.title("🔑 STRUTTURE Premium")
-        st.subheader("Effettua il login per accedere")
+    st.title("🔑 STRUTTURE Premium")
+    st.subheader("Effettua il login per accedere")
 
-        with st.form("login_form"):
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password")
-            submitted = st.form_submit_button("Accedi")
-            
-            if submitted:
-                try:
-                    keyauthapp.login(username, password)
-                    st.session_state['authenticated'] = True
-                    # Rimuove subito il form
-                    login_container.empty()
-                except Exception as e:
-                    st.error(f"Errore login: {e}")
+    with st.form("login_form"):
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Accedi")
+        
+        if submitted:
+            try:
+                keyauthapp.login(username, password)
+                st.session_state['authenticated'] = True
+                st.success("Login effettuato con successo! Caricamento app...")
+                time.sleep(0.2)  # breve delay per effetto
+            except Exception as e:
+                st.error(f"Errore login: {e}")
 
 # --- APP PRINCIPALE SOLO SE AUTENTICATO ---
 if st.session_state['authenticated']:
@@ -67,7 +65,6 @@ if st.session_state['authenticated']:
     @st.cache_data
     def load_data():
         df = pd.read_csv("STRUTTURE_cleaned.csv")
-        time.sleep(0.3)
         return df
 
     df = load_data()
@@ -76,9 +73,13 @@ if st.session_state['authenticated']:
     st.title("🔍 Ricerca STRUTTURE")
     
     # --- FILTRI ---
-    luoghi = sorted(df["luogo_clean"].dropna().unique())
-    luogo_sel = st.multiselect("Seleziona luogo", luoghi)
-    tipo_neve = st.text_input("Tipo di neve (ricerca per parola chiave)")
+    col1, col2 = st.columns(2)
+    with col1:
+        luoghi = sorted(df["luogo_clean"].dropna().unique())
+        luogo_sel = st.multiselect("Seleziona luogo", luoghi)
+    with col2:
+        tipo_neve = st.text_input("Tipo di neve (parola chiave)")
+
     temp_field = st.selectbox("Campo temperatura", ["temp_aria_inizio", "temp_aria_fine", "temp_neve_inizio", "temp_neve_fine"])
     hum_field = st.selectbox("Campo umidità", ["hum_inizio", "hum_fine"])
     solo_considerazioni = st.checkbox("Mostra solo righe con considerazioni post gara/test")
