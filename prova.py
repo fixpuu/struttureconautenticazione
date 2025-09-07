@@ -46,7 +46,7 @@ def login_form():
                     keyauthapp.login(username, password)
                     st.session_state['login_successful'] = True
                     st.session_state['user'] = username
-                    st.success("✅ Login effettuato! Caricamento app...")
+                    st.success("✅ Login effettuato! Caricamento app...   Se la finestra principale non appare premi INVIIO in un campo qui sopra")
                     time.sleep(0.5)  # piccola pausa per effetto
                 except Exception as e:
                     st.error(f"❌ Errore login: {e}")
@@ -55,8 +55,8 @@ def login_form():
 # APP PRINCIPALE
 # -------------------
 def main_app():
-    st.markdown(f"<h2 style='text-align:center;color:#4B0082;'>Benvenuto, {st.session_state['user']}!</h2>", unsafe_allow_html=True)
-    st.info("Caricamento dati...")
+    st.markdown(f"<h2 style='text-align:center;color:#4B0082;'>Bentornato, {st.session_state['user']}!</h2>", unsafe_allow_html=True)
+    st.info("Hai bisogno di aiuto? Vuoi rinnovare il tuo abbonamento? Non sei sicuro di essere nell'ultima versione?  Chiedi al nostro developer qui: https://t.me/fixpuu")
 
     @st.cache_data
     def load_data():
@@ -112,3 +112,4 @@ if not st.session_state['login_successful']:
     login_form()
 else:
     main_app()
+
