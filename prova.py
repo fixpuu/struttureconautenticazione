@@ -1,4 +1,3 @@
-# prova.py
 import streamlit as st
 import pandas as pd
 from keyauth import api
@@ -33,9 +32,8 @@ if 'user' not in st.session_state:
 # -------------------
 # LOGIN FORM
 # -------------------
-if not st.session_state['login_successful']:
+def login_form():
     st.markdown("<h1 style='text-align:center;color:#4B0082;'>🔒 Login STRUTTURE</h1>", unsafe_allow_html=True)
-
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
         with st.form("login_form"):
@@ -49,15 +47,14 @@ if not st.session_state['login_successful']:
                     st.session_state['login_successful'] = True
                     st.session_state['user'] = username
                     st.success("✅ Login effettuato! Caricamento app...")
-                    time.sleep(1)  # piccola pausa per animazione
-                    st.experimental_rerun()  # aggiorna la pagina per mostrare l'app
+                    time.sleep(0.5)  # piccola pausa per effetto
                 except Exception as e:
                     st.error(f"❌ Errore login: {e}")
 
 # -------------------
 # APP PRINCIPALE
 # -------------------
-if st.session_state['login_successful']:
+def main_app():
     st.markdown(f"<h2 style='text-align:center;color:#4B0082;'>Benvenuto, {st.session_state['user']}!</h2>", unsafe_allow_html=True)
     st.info("Caricamento dati...")
 
@@ -67,7 +64,6 @@ if st.session_state['login_successful']:
         return df
 
     df = load_data()
-
     st.title("🔍 Ricerca STRUTTURE")
 
     # FILTRI
@@ -76,18 +72,16 @@ if st.session_state['login_successful']:
     tipo_neve = st.text_input("Tipo di neve (parola chiave)")
 
     temp_field = st.selectbox("Campo temperatura", ["temp_aria_inizio", "temp_aria_fine", "temp_neve_inizio", "temp_neve_fine"])
+    temp_range = None
     if temp_field in df.columns:
         min_temp, max_temp = float(df[temp_field].min()), float(df[temp_field].max())
         temp_range = st.slider("Intervallo temperatura", min_value=min_temp, max_value=max_temp, value=(min_temp, max_temp))
-    else:
-        temp_range = None
 
     hum_field = st.selectbox("Campo umidità", ["hum_inizio", "hum_fine"])
+    hum_range = None
     if hum_field in df.columns:
         min_h, max_h = float(df[hum_field].min()), float(df[hum_field].max())
         hum_range = st.slider("Intervallo umidità", min_value=min_h, max_value=max_h, value=(min_h, max_h))
-    else:
-        hum_range = None
 
     solo_considerazioni = st.checkbox("Mostra solo righe con considerazioni post gara/test")
 
@@ -110,3 +104,11 @@ if st.session_state['login_successful']:
 
     # DOWNLOAD CSV
     st.download_button("📥 Scarica risultati filtrati (CSV)", df_filtrato.to_csv(index=False).encode("utf-8"), "risultati.csv", "text/csv")
+
+# -------------------
+# LOGICA APP
+# -------------------
+if not st.session_state['login_successful']:
+    login_form()
+else:
+    main_app()
