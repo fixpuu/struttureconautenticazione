@@ -1,80 +1,91 @@
 import streamlit as st
 import pandas as pd
-import time
-import webbrowser
 from keyauth import api
+import time
 
-# --- CONFIGURAZIONE PAGINA ---
-st.set_page_config(
-    page_title="🔍 STRUTTURE App",
-    page_icon="🏔️",
-    layout="wide"
+# -------------------
+# CONFIG KEYAUTH
+# -------------------
+def getchecksum():
+    import hashlib, sys
+    md5_hash = hashlib.md5()
+    with open(sys.argv[0], "rb") as file:
+        md5_hash.update(file.read())
+    return md5_hash.hexdigest()
+
+keyauthapp = api(
+    name="strutture",
+    ownerid="l9G6gNHYVu",
+    secret="8f89f06f3cec7207ad7ac9e1786057396d0bb6c587ba8f6fc548ba4f244c78b1",
+    version="1.0",
+    hash_to_check=getchecksum()
 )
 
-# --- FUNZIONI ---
-def get_keyauth_app():
-    """Configura KeyAuth"""
-    return api(
-        name="strutture",
-        ownerid="l9G6gNHYVu",
-        secret="8f89f06f3cec7207ad7ac9e1786057396d0bb6c587ba8f6fc548ba4f244c78b1",
-        version="1.0",
-    )
+# -------------------
+# SESSION STATE INIT
+# -------------------
+if 'login_successful' not in st.session_state:
+    st.session_state['login_successful'] = False
+if 'user' not in st.session_state:
+    st.session_state['user'] = None
 
+# -------------------
+# LOGIN FORM
+# -------------------
 def login_form():
-    """Form di login"""
-    st.markdown("## 🔐 Login")
-    with st.form("login_form", clear_on_submit=True):
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        submit = st.form_submit_button("Login")
-        if submit:
-            try:
-                keyauth_app.license(username)  # Verifica KeyAuth con username come chiave
-                st.session_state['login_successful'] = True
-                st.success("✅ Login effettuato! Caricamento app...")
-                time.sleep(1)  # Animazione caricamento
-            except Exception as e:
-                st.error(f"❌ Errore login: {str(e)}")
+    st.markdown("<h1 style='text-align:center;color:#4B0082;'>🔒 Login STRUTTURE</h1>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        with st.form("login_form"):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Login")
+            
+            if submitted:
+                try:
+                    keyauthapp.login(username, password)
+                    st.session_state['login_successful'] = True
+                    st.session_state['user'] = username
+                    st.success("✅ Login effettuato! Caricamento app...")
+                    time.sleep(0.5)  # piccola pausa per effetto
+                except Exception as e:
+                    st.error(f"❌ Errore login: {e}")
 
-def load_data():
-    """Carica CSV"""
-    path = "STRUTTURE_cleaned.csv"
-    df = pd.read_csv(path)
-    return df
+# -------------------
+# APP PRINCIPALE
+# -------------------
+def main_app():
+    st.markdown(f"<h2 style='text-align:center;color:#4B0082;'>Benvenuto, {st.session_state['user']}!</h2>", unsafe_allow_html=True)
+    st.info("Caricamento dati...")
 
-def app_main(df):
-    """Contenuto principale dell'app"""
+    @st.cache_data
+    def load_data():
+        df = pd.read_csv("STRUTTURE_cleaned.csv")
+        return df
+
+    df = load_data()
     st.title("🔍 Ricerca STRUTTURE")
-    
-    # --- Filtri ---
+
+    # FILTRI
     luoghi = sorted(df["luogo_clean"].dropna().unique())
     luogo_sel = st.multiselect("Seleziona luogo", luoghi)
+    tipo_neve = st.text_input("Tipo di neve (parola chiave)")
 
-    tipo_neve = st.text_input("Tipo di neve (ricerca per parola chiave)")
-
-    temp_field = st.selectbox(
-        "Campo temperatura",
-        ["temp_aria_inizio", "temp_aria_fine", "temp_neve_inizio", "temp_neve_fine"]
-    )
+    temp_field = st.selectbox("Campo temperatura", ["temp_aria_inizio", "temp_aria_fine", "temp_neve_inizio", "temp_neve_fine"])
+    temp_range = None
     if temp_field in df.columns:
         min_temp, max_temp = float(df[temp_field].min()), float(df[temp_field].max())
-        temp_range = st.slider("Intervallo temperatura", min_value=min_temp, max_value=max_temp,
-                               value=(min_temp, max_temp))
-    else:
-        temp_range = None
+        temp_range = st.slider("Intervallo temperatura", min_value=min_temp, max_value=max_temp, value=(min_temp, max_temp))
 
     hum_field = st.selectbox("Campo umidità", ["hum_inizio", "hum_fine"])
+    hum_range = None
     if hum_field in df.columns:
         min_h, max_h = float(df[hum_field].min()), float(df[hum_field].max())
-        hum_range = st.slider("Intervallo umidità", min_value=min_h, max_value=max_h,
-                              value=(min_h, max_h))
-    else:
-        hum_range = None
+        hum_range = st.slider("Intervallo umidità", min_value=min_h, max_value=max_h, value=(min_h, max_h))
 
     solo_considerazioni = st.checkbox("Mostra solo righe con considerazioni post gara/test")
 
-    # --- Applica filtri ---
+    # APPLICA FILTRI
     df_filtrato = df.copy()
     if luogo_sel:
         df_filtrato = df_filtrato[df_filtrato["luogo_clean"].isin(luogo_sel)]
@@ -87,27 +98,17 @@ def app_main(df):
     if solo_considerazioni:
         df_filtrato = df_filtrato[df_filtrato["CONSIDERAZIONE POST GARA o TEST"].notna()]
 
-    # --- Mostra risultati ---
+    # RISULTATI
     st.write(f"**{len(df_filtrato)} risultati trovati**")
     st.dataframe(df_filtrato)
 
-    st.download_button(
-        "📥 Scarica risultati filtrati (CSV)",
-        df_filtrato.to_csv(index=False).encode("utf-8"),
-        "risultati.csv",
-        "text/csv"
-    )
+    # DOWNLOAD CSV
+    st.download_button("📥 Scarica risultati filtrati (CSV)", df_filtrato.to_csv(index=False).encode("utf-8"), "risultati.csv", "text/csv")
 
-# --- MAIN ---
-keyauth_app = get_keyauth_app()
-
-if 'login_successful' not in st.session_state:
-    st.session_state['login_successful'] = False
-
+# -------------------
+# LOGICA APP
+# -------------------
 if not st.session_state['login_successful']:
     login_form()
-    st.stop()  # Blocca l'esecuzione finché non effettui login
-
-# Se login effettuato, mostra app
-df = load_data()
-app_main(df)
+else:
+    main_app()
