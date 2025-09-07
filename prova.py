@@ -4,12 +4,40 @@ from keyauth import api
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="🔍 STRUTTURE Premium", layout="wide")
 
+# --- STYLING ---
 st.markdown("""
 <style>
-body {background-color: #1a1a1a; color: #f0f0f0; font-family: 'Segoe UI', sans-serif;}
-h1 {color: #ff6f61; text-align: center;}
-.stButton>button {background-color:#ff6f61; color:white; font-size:16px; font-weight:bold; border-radius:10px; margin:0px 5px;}
-.stTextInput>div>div>input {background-color:#2b2b2b; color:white; border-radius:5px; padding:5px;}
+body {
+    background-color: #0f111a;
+    color: #f0f0f0;
+    font-family: 'Segoe UI', sans-serif;
+}
+h1, h2, h3 {
+    color: #ff6f61;
+    text-align: center;
+}
+.stButton>button {
+    background: linear-gradient(90deg, #ff6f61, #ff9472);
+    color:white;
+    font-size:16px;
+    font-weight:bold;
+    border-radius:15px;
+    padding:8px 25px;
+    transition: all 0.3s ease;
+}
+.stButton>button:hover {
+    transform: scale(1.05);
+}
+.stTextInput>div>div>input {
+    background-color:#1c1f33; 
+    color:white; 
+    border-radius:10px; 
+    padding:10px; 
+    border: 1px solid #ff6f61;
+}
+.stSlider>div>div>input {
+    color: #ff6f61;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -31,73 +59,45 @@ keyauthapp = api(
 # --- SESSION STATE ---
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
-if 'mode' not in st.session_state:
-    st.session_state['mode'] = None  # login / register
-if 'registered' not in st.session_state:
-    st.session_state['registered'] = False
-
-# --- HOME PAGE (LOGIN / REGISTER SELEZIONE) ---
-if not st.session_state['authenticated'] and not st.session_state['registered']:
-    st.title("🔑 STRUTTURE Premium")
-    # Pulsanti vicini
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        st.write("")  # spaziatura verticale
-        c1, c2 = st.columns([1,1])
-        with c1:
-            if st.button("Login"):
-                st.session_state['mode'] = "login"
-        with c2:
-            if st.button("Registrati"):
-                st.session_state['mode'] = "register"
 
 # --- LOGIN FORM ---
-if st.session_state['mode'] == "login":
-    st.subheader("Login")
+if not st.session_state['authenticated']:
+    st.title("🔑 STRUTTURE Premium")
+    st.subheader("Effettua il login per accedere")
+
     with st.form("login_form"):
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Accedi")
+        
         if submitted:
-            try:
-                keyauthapp.login(username, password)
-                st.success(f"Benvenuto {keyauthapp.user_data.username}!")
-                st.session_state['authenticated'] = True
-                st.session_state['mode'] = None
-            except Exception as e:
-                st.error(f"Errore login: {e}")
-
-# --- REGISTRAZIONE FORM ---
-elif st.session_state['mode'] == "register":
-    st.subheader("Registrazione")
-    with st.form("register_form"):
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        license_key = st.text_input("License Key")
-        submitted = st.form_submit_button("Registrati")
-        if submitted:
-            try:
-                keyauthapp.register(username, password, license_key)
-                st.success("Registrazione completata! Ora fai il login con le stesse credenziali.")
-                st.session_state['registered'] = True
-                st.session_state['mode'] = "login"  # mostra subito login
-            except Exception as e:
-                st.error(f"Errore registrazione: {e}")
+            with st.spinner("Verificando credenziali… 🔑"):
+                time.sleep(1)  # animazione
+                try:
+                    keyauthapp.login(username, password)
+                    st.success(f"Benvenuto {keyauthapp.user_data.username}!")
+                    time.sleep(0.5)
+                    st.session_state['authenticated'] = True
+                except Exception as e:
+                    st.error(f"Errore login: {e}")
 
 # --- APP PRINCIPALE SOLO SE AUTENTICATO ---
 if st.session_state['authenticated']:
-    st.success("Accesso riuscito! Caricamento dati…")
+    # Animazione di caricamento
+    with st.spinner("Caricamento dati… 📊"):
+        time.sleep(1)
     
     # --- CARICAMENTO CSV ---
     @st.cache_data
     def load_data():
         df = pd.read_csv("STRUTTURE_cleaned.csv")
-        time.sleep(1)  # animazione caricamento
+        time.sleep(0.5)
         return df
 
     df = load_data()
 
     st.title("🔍 Ricerca STRUTTURE")
+    
     # --- FILTRI ---
     luoghi = sorted(df["luogo_clean"].dropna().unique())
     luogo_sel = st.multiselect("Seleziona luogo", luoghi)
@@ -125,5 +125,10 @@ if st.session_state['authenticated']:
 
     # --- MOSTRA DATI ---
     st.write(f"**{len(df_filtrato)} risultati trovati**")
-    st.dataframe(df_filtrato)
-    st.download_button("📥 Scarica risultati filtrati (CSV)", df_filtrato.to_csv(index=False).encode("utf-8"), "risultati.csv", "text/csv")
+    st.dataframe(df_filtrato, use_container_width=True)
+    st.download_button(
+        "📥 Scarica risultati filtrati (CSV)", 
+        df_filtrato.to_csv(index=False).encode("utf-8"), 
+        "risultati.csv", 
+        "text/csv"
+    )
