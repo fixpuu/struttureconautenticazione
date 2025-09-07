@@ -64,7 +64,7 @@ def main_app():
         return df
 
     df = load_data()
-    st.title("🔍 Ricerca STRUTTURE")
+    st.title("🔍 Ricerca STRUTTURE - MG Strutture Premium ( BETA )")
 
     # FILTRI
     luoghi = sorted(df["luogo_clean"].dropna().unique())
@@ -112,5 +112,6 @@ if not st.session_state['login_successful']:
     login_form()
 else:
     main_app()
+
 
 
