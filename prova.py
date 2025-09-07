@@ -1,78 +1,44 @@
-import sys, hashlib, time, pandas as pd, streamlit as st
-from keyauth import api
+import streamlit as st
+import pandas as pd
+import time
 
-# --- PAGE CONFIG ---
 st.set_page_config(page_title="🔍 STRUTTURE Premium", layout="wide")
 
-# --- STYLING ---
+# --- CONTROLLO LOGIN ---
+query_params = st.experimental_get_query_params()
+if query_params.get("auth") != ["ok"]:
+    st.warning("Devi effettuare il login prima!")
+    st.stop()
+
+# --- CARICAMENTO CSV ---
+@st.cache_data
+def load_data():
+    return pd.read_csv("STRUTTURE_cleaned.csv")
+
+df = load_data()
+
+# --- INTERFACCIA ANIMATA ---
 st.markdown("""
-<style>
-body {background-color: #0f111a; color: #f0f0f0; font-family: 'Segoe UI', sans-serif;}
-h1, h2, h3 {color: #ff6f61; text-align: center;}
-.stButton>button {
-    background: linear-gradient(90deg, #ff6f61, #ff9472);
-    color:white; font-size:16px; font-weight:bold;
-    border-radius:15px; padding:10px 30px; transition: all 0.3s ease;
-    box-shadow: 0px 0px 15px rgba(255,111,97,0.5);
-}
-.stButton>button:hover {transform: scale(1.05); box-shadow: 0px 0px 25px rgba(255,111,97,0.8);}
-.stTextInput>div>div>input {background-color:#1c1f33; color:white; border-radius:10px; padding:10px; border: 1px solid #ff6f61; transition: all 0.3s ease;}
-.stTextInput>div>div>input:focus {border: 2px solid #ff9472; box-shadow: 0 0 8px #ff9472;}
-</style>
+    <style>
+    .fade-in {
+        animation: fadeIn 1s ease-in-out;
+    }
+    @keyframes fadeIn {
+        from {opacity:0; transform: translateY(20px);}
+        to {opacity:1; transform: translateY(0);}
+    }
+    .stSlider>div>div>div>div>div {
+        background: linear-gradient(90deg,#667eea,#764ba2);
+    }
+    </style>
 """, unsafe_allow_html=True)
 
-# --- KEYAUTH SETUP ---
-def getchecksum():
-    md5_hash = hashlib.md5()
-    with open(sys.argv[0], "rb") as file:
-        md5_hash.update(file.read())
-    return md5_hash.hexdigest()
+st.title("🔍 Ricerca STRUTTURE Premium", anchor="top")
 
-keyauthapp = api(
-    name="strutture",
-    ownerid="l9G6gNHYVu",
-    secret="8f89f06f3cec7207ad7ac9e1786057396d0bb6c587ba8f6fc548ba4f244c78b1",
-    version="1.0",
-    hash_to_check=getchecksum()
-)
+with st.container():
+    st.markdown('<div class="fade-in">', unsafe_allow_html=True)
 
-# --- SESSION STATE ---
-if 'authenticated' not in st.session_state:
-    st.session_state['authenticated'] = False
-
-# --- LOGIN FORM SOLO SE NON AUTENTICATO ---
-if not st.session_state['authenticated']:
-    st.title("🔑 STRUTTURE Premium")
-    st.subheader("Effettua il login per accedere")
-
-    with st.form("login_form"):
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Accedi")
-        
-        if submitted:
-            try:
-                keyauthapp.login(username, password)
-                st.session_state['authenticated'] = True
-                st.success("Login effettuato con successo! Caricamento app...")
-                time.sleep(0.2)  # breve delay per effetto
-            except Exception as e:
-                st.error(f"Errore login: {e}")
-
-# --- APP PRINCIPALE SOLO SE AUTENTICATO ---
-if st.session_state['authenticated']:
-    # --- CARICAMENTO CSV ---
-    @st.cache_data
-    def load_data():
-        df = pd.read_csv("STRUTTURE_cleaned.csv")
-        return df
-
-    df = load_data()
-
-    # --- INTERFACCIA PRINCIPALE ---
-    st.title("🔍 Ricerca STRUTTURE")
-    
-    # --- FILTRI ---
+    # FILTRI
     col1, col2 = st.columns(2)
     with col1:
         luoghi = sorted(df["luogo_clean"].dropna().unique())
@@ -84,7 +50,7 @@ if st.session_state['authenticated']:
     hum_field = st.selectbox("Campo umidità", ["hum_inizio", "hum_fine"])
     solo_considerazioni = st.checkbox("Mostra solo righe con considerazioni post gara/test")
 
-    # --- APPLICA FILTRI ---
+    # FILTRAGGIO
     df_filtrato = df.copy()
     if luogo_sel:
         df_filtrato = df_filtrato[df_filtrato["luogo_clean"].isin(luogo_sel)]
@@ -101,12 +67,9 @@ if st.session_state['authenticated']:
     if solo_considerazioni:
         df_filtrato = df_filtrato[df_filtrato["CONSIDERAZIONE POST GARA o TEST"].notna()]
 
-    # --- MOSTRA DATI ---
+    # RISULTATI CON ANIMAZIONE
     st.write(f"**{len(df_filtrato)} risultati trovati**")
     st.dataframe(df_filtrato, use_container_width=True)
-    st.download_button(
-        "📥 Scarica risultati filtrati (CSV)", 
-        df_filtrato.to_csv(index=False).encode("utf-8"), 
-        "risultati.csv", 
-        "text/csv"
-    )
+    st.download_button("📥 Scarica risultati filtrati (CSV)", df_filtrato.to_csv(index=False).encode("utf-8"), "risultati.csv", "text/csv")
+
+    st.markdown('</div>', unsafe_allow_html=True)
