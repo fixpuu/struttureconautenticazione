@@ -7,42 +7,17 @@ st.set_page_config(page_title="🔍 STRUTTURE Premium", layout="wide")
 # --- STYLING ---
 st.markdown("""
 <style>
-body {
-    background-color: #0f111a;
-    color: #f0f0f0;
-    font-family: 'Segoe UI', sans-serif;
-}
-h1, h2, h3 {
-    color: #ff6f61;
-    text-align: center;
-    transition: all 0.5s ease-in-out;
-}
+body {background-color: #0f111a; color: #f0f0f0; font-family: 'Segoe UI', sans-serif;}
+h1, h2, h3 {color: #ff6f61; text-align: center;}
 .stButton>button {
     background: linear-gradient(90deg, #ff6f61, #ff9472);
-    color:white;
-    font-size:16px;
-    font-weight:bold;
-    border-radius:15px;
-    padding:10px 30px;
-    transition: all 0.3s ease;
+    color:white; font-size:16px; font-weight:bold;
+    border-radius:15px; padding:10px 30px; transition: all 0.3s ease;
     box-shadow: 0px 0px 15px rgba(255,111,97,0.5);
 }
-.stButton>button:hover {
-    transform: scale(1.05);
-    box-shadow: 0px 0px 25px rgba(255,111,97,0.8);
-}
-.stTextInput>div>div>input {
-    background-color:#1c1f33; 
-    color:white; 
-    border-radius:10px; 
-    padding:10px; 
-    border: 1px solid #ff6f61;
-    transition: all 0.3s ease;
-}
-.stTextInput>div>div>input:focus {
-    border: 2px solid #ff9472;
-    box-shadow: 0 0 8px #ff9472;
-}
+.stButton>button:hover {transform: scale(1.05); box-shadow: 0px 0px 25px rgba(255,111,97,0.8);}
+.stTextInput>div>div>input {background-color:#1c1f33; color:white; border-radius:10px; padding:10px; border: 1px solid #ff6f61; transition: all 0.3s ease;}
+.stTextInput>div>div>input:focus {border: 2px solid #ff9472; box-shadow: 0 0 8px #ff9472;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -66,8 +41,8 @@ if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
 # --- LOGIN FORM ---
+login_container = st.container()
 if not st.session_state['authenticated']:
-    login_container = st.container()
     with login_container:
         st.title("🔑 STRUTTURE Premium")
         st.subheader("Effettua il login per accedere")
@@ -78,51 +53,35 @@ if not st.session_state['authenticated']:
             submitted = st.form_submit_button("Accedi")
             
             if submitted:
-                with st.spinner("Verificando credenziali… 🔑"):
-                    time.sleep(1.2)  # animazione
-                    try:
-                        keyauthapp.login(username, password)
-                        st.success(f"Benvenuto {keyauthapp.user_data.username}!")
-                        time.sleep(0.5)
-                        st.session_state['authenticated'] = True
-                        login_container.empty()  # rimuove il form
-                    except Exception as e:
-                        st.error(f"Errore login: {e}")
+                try:
+                    keyauthapp.login(username, password)
+                    st.session_state['authenticated'] = True
+                    # Rimuove subito il form
+                    login_container.empty()
+                except Exception as e:
+                    st.error(f"Errore login: {e}")
 
 # --- APP PRINCIPALE SOLO SE AUTENTICATO ---
 if st.session_state['authenticated']:
-    # Animazione di transizione elegante
-    st.markdown("<h2 style='text-align:center; color:#ff9472; opacity:0.0; animation:fadeIn 1s forwards;'>Caricamento app...</h2>", unsafe_allow_html=True)
-    st.markdown("""
-    <style>
-    @keyframes fadeIn {
-        to {opacity: 1;}
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    time.sleep(0.8)
-
     # --- CARICAMENTO CSV ---
     @st.cache_data
     def load_data():
         df = pd.read_csv("STRUTTURE_cleaned.csv")
-        time.sleep(0.5)
+        time.sleep(0.3)
         return df
 
     df = load_data()
 
+    # --- INTERFACCIA PRINCIPALE ---
     st.title("🔍 Ricerca STRUTTURE")
     
     # --- FILTRI ---
-    st.subheader("Filtra i dati")
-    with st.spinner("Caricamento filtri… ⏳"):
-        time.sleep(0.5)
-        luoghi = sorted(df["luogo_clean"].dropna().unique())
-        luogo_sel = st.multiselect("Seleziona luogo", luoghi)
-        tipo_neve = st.text_input("Tipo di neve (ricerca per parola chiave)")
-        temp_field = st.selectbox("Campo temperatura", ["temp_aria_inizio", "temp_aria_fine", "temp_neve_inizio", "temp_neve_fine"])
-        hum_field = st.selectbox("Campo umidità", ["hum_inizio", "hum_fine"])
-        solo_considerazioni = st.checkbox("Mostra solo righe con considerazioni post gara/test")
+    luoghi = sorted(df["luogo_clean"].dropna().unique())
+    luogo_sel = st.multiselect("Seleziona luogo", luoghi)
+    tipo_neve = st.text_input("Tipo di neve (ricerca per parola chiave)")
+    temp_field = st.selectbox("Campo temperatura", ["temp_aria_inizio", "temp_aria_fine", "temp_neve_inizio", "temp_neve_fine"])
+    hum_field = st.selectbox("Campo umidità", ["hum_inizio", "hum_fine"])
+    solo_considerazioni = st.checkbox("Mostra solo righe con considerazioni post gara/test")
 
     # --- APPLICA FILTRI ---
     df_filtrato = df.copy()
