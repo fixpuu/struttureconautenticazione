@@ -55,7 +55,7 @@ def login_form():
 # APP PRINCIPALE
 # -------------------
 def main_app():
-    st.markdown(f"<h2 style='text-align:center;color:#FF0000;'>Benvenuto, {st.session_state['user']}!</h2>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='text-align:center;color:#FF0000;'>Bentornato, {st.session_state['user']}!</h2>", unsafe_allow_html=True)
     st.info("Hai bisogno di aiuto? Vuoi rinnovare il tuo abbonamento? Non sei sicuro di essere nell'ultima versione?  Chiedi al nostro developer qui: https://t.me/fixpuu")
 
     @st.cache_data
@@ -112,4 +112,5 @@ if not st.session_state['login_successful']:
     login_form()
 else:
     main_app()
+
 
