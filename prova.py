@@ -66,44 +66,75 @@ def main_app():
     df = load_data()
     st.title("🔍 Ricerca STRUTTURE")
 
-    # FILTRI
-    luoghi = sorted(df["luogo_clean"].dropna().unique())
-    luogo_sel = st.multiselect("Seleziona luogo", luoghi)
-    tipo_neve = st.text_input("Tipo di neve (parola chiave)")
 
-    temp_field = st.selectbox("Campo temperatura", ["temp_aria_inizio", "temp_aria_fine", "temp_neve_inizio", "temp_neve_fine"])
-    temp_range = None
-    if temp_field in df.columns:
+    # --- Filtro Luoghi ---
+    if "luogo_clean" in df.columns:
+        luoghi = sorted(df["luogo_clean"].dropna().unique())
+        luogo_sel = st.multiselect("Seleziona luogo", luoghi)
+    elif "luogo" in df.columns:  # fallback
+        luoghi = sorted(df["luogo"].dropna().unique())
+        luogo_sel = st.multiselect("Seleziona luogo", luoghi)
+    else:
+        st.warning("⚠️ Nessuna colonna 'luogo' trovata nel dataset.")
+        luogo_sel = None
+
+    # --- Tipo neve ---
+    if "tipo_neve_clean" in df.columns:
+        tipo_neve = st.text_input("Tipo di neve (ricerca per parola chiave)")
+    else:
+        tipo_neve = None
+
+    # --- Campi temperatura ---
+    temp_options = [col for col in ["temp_aria_inizio", "temp_aria_fine", "temp_neve_inizio", "temp_neve_fine"] if col in df.columns]
+    if temp_options:
+        temp_field = st.selectbox("Campo temperatura", temp_options)
         min_temp, max_temp = float(df[temp_field].min()), float(df[temp_field].max())
         temp_range = st.slider("Intervallo temperatura", min_value=min_temp, max_value=max_temp, value=(min_temp, max_temp))
+    else:
+        temp_field, temp_range = None, None
+        st.warning("⚠️ Nessun campo temperatura trovato.")
 
-    hum_field = st.selectbox("Campo umidità", ["hum_inizio", "hum_fine"])
-    hum_range = None
-    if hum_field in df.columns:
+    # --- Campi umidità ---
+    hum_options = [col for col in ["hum_inizio", "hum_fine"] if col in df.columns]
+    if hum_options:
+        hum_field = st.selectbox("Campo umidità", hum_options)
         min_h, max_h = float(df[hum_field].min()), float(df[hum_field].max())
         hum_range = st.slider("Intervallo umidità", min_value=min_h, max_value=max_h, value=(min_h, max_h))
+    else:
+        hum_field, hum_range = None, None
+        st.warning("⚠️ Nessun campo umidità trovato.")
 
-    solo_considerazioni = st.checkbox("Mostra solo righe con considerazioni post gara/test")
+    # --- Considerazioni ---
+    solo_considerazioni = "CONSIDERAZIONE POST GARA o TEST" in df.columns and st.checkbox("Mostra solo righe con considerazioni post gara/test")
 
-    # APPLICA FILTRI
+    # --- Applica filtri ---
     df_filtrato = df.copy()
     if luogo_sel:
-        df_filtrato = df_filtrato[df_filtrato["luogo_clean"].isin(luogo_sel)]
-    if tipo_neve:
+        col_luogo = "luogo_clean" if "luogo_clean" in df.columns else "luogo"
+        df_filtrato = df_filtrato[df_filtrato[col_luogo].isin(luogo_sel)]
+
+    if tipo_neve and "tipo_neve_clean" in df.columns:
         df_filtrato = df_filtrato[df_filtrato["tipo_neve_clean"].str.contains(tipo_neve, case=False, na=False)]
+
     if temp_range and temp_field in df_filtrato.columns:
         df_filtrato = df_filtrato[(df_filtrato[temp_field] >= temp_range[0]) & (df_filtrato[temp_field] <= temp_range[1])]
+
     if hum_range and hum_field in df_filtrato.columns:
         df_filtrato = df_filtrato[(df_filtrato[hum_field] >= hum_range[0]) & (df_filtrato[hum_field] <= hum_range[1])]
+
     if solo_considerazioni:
         df_filtrato = df_filtrato[df_filtrato["CONSIDERAZIONE POST GARA o TEST"].notna()]
 
-    # RISULTATI
+    # --- Mostra risultati ---
     st.write(f"**{len(df_filtrato)} risultati trovati**")
     st.dataframe(df_filtrato)
 
-    # DOWNLOAD CSV
-    st.download_button("📥 Scarica risultati filtrati (CSV)", df_filtrato.to_csv(index=False).encode("utf-8"), "risultati.csv", "text/csv")
+    st.download_button(
+        "📥 Scarica risultati filtrati (CSV)",
+        df_filtrato.to_csv(index=False).encode("utf-8"),
+        "risultati.csv",
+        "text/csv"
+    )
 
 # -------------------
 # LOGICA APP
@@ -112,4 +143,5 @@ if not st.session_state['login_successful']:
     login_form()
 else:
     main_app()
+
 
