@@ -1,147 +1,277 @@
+# prova.py
 import streamlit as st
 import pandas as pd
-from keyauth import api
 import time
+import sys
+import hashlib
+from keyauth import api
 
-# -------------------
-# CONFIG KEYAUTH
-# -------------------
-def getchecksum():
-    import hashlib, sys
-    md5_hash = hashlib.md5()
-    with open(sys.argv[0], "rb") as file:
-        md5_hash.update(file.read())
-    return md5_hash.hexdigest()
+# -------------------------
+# Page config + minimal CSS
+# -------------------------
+st.set_page_config(page_title="🔍 STRUTTURE", page_icon="🏔️", layout="wide")
+st.markdown("""
+<style>
+body {background-color: #0f111a; color: #f0f0f0; font-family: 'Segoe UI', sans-serif;}
+h1,h2 {color:#ffd580;}
+.card {background: linear-gradient(135deg,#0b1622,#102233); padding:18px; border-radius:12px; box-shadow:0 6px 30px rgba(0,0,0,0.6);}
+.small-muted {color:#9aa7b0; font-size:13px;}
+</style>
+""", unsafe_allow_html=True)
 
-keyauthapp = api(
-    name="strutture",
-    ownerid="l9G6gNHYVu",
-    secret="8f89f06f3cec7207ad7ac9e1786057396d0bb6c587ba8f6fc548ba4f244c78b1",
-    version="1.0",
-    hash_to_check=getchecksum()
-)
+# -------------------------
+# KeyAuth init (robusta)
+# -------------------------
+def safe_checksum():
+    try:
+        md5_hash = hashlib.md5()
+        with open(sys.argv[0], "rb") as f:
+            md5_hash.update(f.read())
+        return md5_hash.hexdigest()
+    except Exception:
+        return None
 
-# -------------------
-# SESSION STATE INIT
-# -------------------
-if 'login_successful' not in st.session_state:
-    st.session_state['login_successful'] = False
+def get_keyauth_app():
+    try:
+        kwargs = dict(
+            name="strutture",
+            ownerid="l9G6gNHYVu",
+            secret="8f89f06f3cec7207ad7ac9e1786057396d0bb6c587ba8f6fc548ba4f244c78b1",
+            version="1.0"
+        )
+        chk = safe_checksum()
+        if chk:
+            kwargs["hash_to_check"] = chk
+        return api(**kwargs)
+    except Exception as e:
+        st.error("Errore inizializzazione KeyAuth: " + str(e))
+        return None
+
+keyauth_app = get_keyauth_app()
+
+# -------------------------
+# Session state init
+# -------------------------
+if 'auth' not in st.session_state:
+    st.session_state['auth'] = False
 if 'user' not in st.session_state:
     st.session_state['user'] = None
+if 'login_error' not in st.session_state:
+    st.session_state['login_error'] = None
 
-# -------------------
-# LOGIN FORM
-# -------------------
-def login_form():
-    st.markdown("<h1 style='text-align:center;color:#4B0082;'>🔒 Login STRUTTURE</h1>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        with st.form("login_form"):
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password")
-            submitted = st.form_submit_button("Login")
-            
-            if submitted:
-                try:
-                    keyauthapp.login(username, password)
-                    st.session_state['login_successful'] = True
-                    st.session_state['user'] = username
-                    st.success("✅ Login effettuato! Caricamento app...             Se la finestra principale non appare premi [ INVIO ] in un campo qui sopra")
-                    time.sleep(0.5)  # piccola pausa per effetto
-                except Exception as e:
-                    st.error(f"❌ Errore login: {e}")
+# -------------------------
+# Utility: robust column mapping
+# -------------------------
+def map_columns(df):
+    """Ritorna mappa di colonne logiche -> nome colonna reale o None."""
+    cols = list(df.columns)
+    lower_map = {c.lower(): c for c in cols}
 
-# -------------------
-# APP PRINCIPALE
-# -------------------
-def main_app():
-    st.markdown(f"<h2 style='text-align:center;color:#4B0082;'>Bentornato, {st.session_state['user']}!</h2>", unsafe_allow_html=True)
-    st.info("Hai bisogno di aiuto? Vuoi rinnovare il tuo abbonamento? Non sei sicuro di essere nell'ultima versione?  Chiedi al nostro developer qui: https://t.me/fixpuu")
+    def find_any(possibles):
+        for p in possibles:
+            if p.lower() in lower_map:
+                return lower_map[p.lower()]
+        # try substring match
+        for c in cols:
+            lc = c.lower()
+            for p in possibles:
+                if p.lower() in lc:
+                    return c
+        return None
 
-    @st.cache_data
-    def load_data():
-        df = pd.read_csv("STRUTTURE_cleaned.csv")
+    mapping = {}
+    mapping['luogo'] = find_any(['luogo_clean', 'luogo', 'localita', 'località', 'location', 'place'])
+    mapping['tipo_neve'] = find_any(['tipo_neve_clean', 'tipo_neve', 'neve', 'tipo_neve'])
+    # temperatures: choose all columns that look like temperature
+    temp_candidates = [c for c in cols if 'temp' in c.lower() or 'temperat' in c.lower()]
+    mapping['temps'] = temp_candidates  # list (maybe empty)
+    hum_candidates = [c for c in cols if 'hum' in c.lower() or 'umid' in c.lower()]
+    mapping['hums'] = hum_candidates
+    mapping['considerazioni'] = find_any(['CONSIDERAZIONE POST GARA o TEST', 'considerazione', 'note', 'considerazioni'])
+    return mapping
+
+# -------------------------
+# Data loader (cached)
+# -------------------------
+@st.cache_data
+def load_data(path="STRUTTURE_cleaned.csv"):
+    try:
+        df = pd.read_csv(path)
         return df
+    except Exception as e:
+        st.error(f"Errore lettura CSV '{path}': {e}")
+        return None
 
+# -------------------------
+# LOGIN UI (sparisce dopo auth)
+# -------------------------
+def show_login():
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.markdown("## 🔐 Login (username / password)")
+    with st.form("login_form", clear_on_submit=False):
+        cols = st.columns([3,2,1])
+        with cols[0]:
+            username = st.text_input("Username")
+        with cols[1]:
+            password = st.text_input("Password", type="password")
+        with cols[2]:
+            submitted = st.form_submit_button("Accedi")
+        if submitted:
+            if keyauth_app is None:
+                st.session_state['login_error'] = "KeyAuth non inizializzato correttamente."
+                return
+            try:
+                # prova a fare login; l'API KeyAuth qui può variare a seconda della libreria
+                # Qui seguiamo il tuo uso precedente: keyauth_app.login(username, password)
+                keyauth_app.login(username, password)
+                # se la chiamata non solleva errore, consideriamo login OK
+                st.session_state['auth'] = True
+                st.session_state['user'] = username
+                st.success("✅ Login effettuato! Caricamento app...")
+                # lasciare un piccolo delay per l'effetto, poi la pagina verrà rerun (submit)
+                time.sleep(0.5)
+            except Exception as e:
+                st.session_state['login_error'] = str(e)
+    if st.session_state.get('login_error'):
+        st.error(st.session_state['login_error'])
+    st.markdown("</div>", unsafe_allow_html=True)
+    # IMPORTANT: stoppiamo l'esecuzione qui se non autenticati (così la parte principale non viene renderizzata)
+    if not st.session_state['auth']:
+        st.stop()
+
+# -------------------------
+# MAIN APP
+# -------------------------
+def main_app():
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.markdown(f"### 👋 Benvenuto, **{st.session_state.get('user','utente')}**", unsafe_allow_html=True)
     df = load_data()
-    st.title("🔍 Ricerca STRUTTURE")
+    if df is None:
+        st.stop()
 
+    mapping = map_columns(df)
 
-    # --- Filtro Luoghi ---
-    if "luogo_clean" in df.columns:
-        luoghi = sorted(df["luogo_clean"].dropna().unique())
-        luogo_sel = st.multiselect("Seleziona luogo", luoghi)
-    elif "luogo" in df.columns:  # fallback
-        luoghi = sorted(df["luogo"].dropna().unique())
-        luogo_sel = st.multiselect("Seleziona luogo", luoghi)
+    # Show detected columns (small muted)
+    detected = []
+    if mapping['luogo']: detected.append(f"luogo: `{mapping['luogo']}`")
+    if mapping['tipo_neve']: detected.append(f"tipo_neve: `{mapping['tipo_neve']}`")
+    if mapping['temps']: detected.append(f"temp fields: {mapping['temps']}")
+    if mapping['hums']: detected.append(f"hum fields: {mapping['hums']}")
+    if mapping['considerazioni']: detected.append(f"considerazioni: `{mapping['considerazioni']}`")
+    if detected:
+        st.markdown("<div class='small-muted'>Colonne rilevate: " + " • ".join(detected) + "</div>", unsafe_allow_html=True)
     else:
-        st.warning("⚠️ Nessuna colonna 'luogo' trovata nel dataset.")
-        luogo_sel = None
+        st.markdown("<div class='small-muted'>Attenzione: non sono state rilevate colonne utili per i filtri.</div>", unsafe_allow_html=True)
 
-    # --- Tipo neve ---
-    if "tipo_neve_clean" in df.columns:
-        tipo_neve = st.text_input("Tipo di neve (ricerca per parola chiave)")
-    else:
-        tipo_neve = None
+    st.markdown("---")
 
-    # --- Campi temperatura ---
-    temp_options = [col for col in ["temp_aria_inizio", "temp_aria_fine", "temp_neve_inizio", "temp_neve_fine"] if col in df.columns]
-    if temp_options:
-        temp_field = st.selectbox("Campo temperatura", temp_options)
-        min_temp, max_temp = float(df[temp_field].min()), float(df[temp_field].max())
-        temp_range = st.slider("Intervallo temperatura", min_value=min_temp, max_value=max_temp, value=(min_temp, max_temp))
-    else:
-        temp_field, temp_range = None, None
-        st.warning("⚠️ Nessun campo temperatura trovato.")
+    # Layout filtri + ricerca libera
+    with st.expander("🔎 Filtri e ricerca", expanded=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            # luogo filter
+            luogo_sel = None
+            if mapping['luogo']:
+                unique_luoghi = sorted(df[mapping['luogo']].dropna().unique())
+                luogo_sel = st.multiselect("Seleziona luogo", unique_luoghi)
+            # tipo neve free text (if exists)
+            tipo_neve_query = None
+            if mapping['tipo_neve']:
+                tipo_neve_query = st.text_input("Tipo di neve (keyword)", value="")
+            # general free text search across string columns
+            q = st.text_input("Ricerca libera (cerca in tutte le colonne testuali)")
+            reset = st.button("Reset filtri")
+        with col2:
+            # temperature selector: if multiple detected, choose one
+            temp_field = None
+            if mapping['temps']:
+                temp_field = st.selectbox("Campo temperatura (se presente)", mapping['temps'])
+                # compute range only if numeric
+                try:
+                    series = pd.to_numeric(df[temp_field], errors='coerce')
+                    min_temp, max_temp = float(series.min()), float(series.max())
+                    temp_range = st.slider("Intervallo temperatura", min_value=min_temp, max_value=max_temp, value=(min_temp, max_temp))
+                except Exception:
+                    temp_range = None
+            else:
+                temp_range = None
 
-    # --- Campi umidità ---
-    hum_options = [col for col in ["hum_inizio", "hum_fine"] if col in df.columns]
-    if hum_options:
-        hum_field = st.selectbox("Campo umidità", hum_options)
-        min_h, max_h = float(df[hum_field].min()), float(df[hum_field].max())
-        hum_range = st.slider("Intervallo umidità", min_value=min_h, max_value=max_h, value=(min_h, max_h))
-    else:
-        hum_field, hum_range = None, None
-        st.warning("⚠️ Nessun campo umidità trovato.")
+            hum_field = None
+            if mapping['hums']:
+                hum_field = st.selectbox("Campo umidità (se presente)", mapping['hums'])
+                try:
+                    series = pd.to_numeric(df[hum_field], errors='coerce')
+                    min_h, max_h = float(series.min()), float(series.max())
+                    hum_range = st.slider("Intervallo umidità", min_value=min_h, max_value=max_h, value=(min_h, max_h))
+                except Exception:
+                    hum_range = None
+            else:
+                hum_range = None
 
-    # --- Considerazioni ---
-    solo_considerazioni = "CONSIDERAZIONE POST GARA o TEST" in df.columns and st.checkbox("Mostra solo righe con considerazioni post gara/test")
+            mostra_cons = False
+            if mapping['considerazioni']:
+                mostra_cons = st.checkbox("Mostra solo righe con considerazioni post gara/test")
+        if reset:
+            # simple way: rerun without persistent filters
+            st.experimental_set_query_params()  # reset URL params - harmless
+            st.experimental_rerun()
 
-    # --- Applica filtri ---
-    df_filtrato = df.copy()
-    if luogo_sel:
-        col_luogo = "luogo_clean" if "luogo_clean" in df.columns else "luogo"
-        df_filtrato = df_filtrato[df_filtrato[col_luogo].isin(luogo_sel)]
+    # --- Applica filtri in modo robusto con animazione
+    with st.spinner("Applicazione filtri..."):
+        time.sleep(0.35)
+        df_filtered = df.copy()
 
-    if tipo_neve and "tipo_neve_clean" in df.columns:
-        df_filtrato = df_filtrato[df_filtrato["tipo_neve_clean"].str.contains(tipo_neve, case=False, na=False)]
+        # luogo
+        if mapping['luogo'] and luogo_sel:
+            df_filtered = df_filtered[df_filtered[mapping['luogo']].isin(luogo_sel)]
 
-    if temp_range and temp_field in df_filtrato.columns:
-        df_filtrato = df_filtrato[(df_filtrato[temp_field] >= temp_range[0]) & (df_filtrato[temp_field] <= temp_range[1])]
+        # tipo neve
+        if mapping['tipo_neve'] and tipo_neve_query:
+            df_filtered = df_filtered[df_filtered[mapping['tipo_neve']].astype(str).str.contains(tipo_neve_query, case=False, na=False)]
 
-    if hum_range and hum_field in df_filtrato.columns:
-        df_filtrato = df_filtrato[(df_filtrato[hum_field] >= hum_range[0]) & (df_filtrato[hum_field] <= hum_range[1])]
+        # temp range
+        if temp_field and temp_range is not None and temp_field in df_filtered.columns:
+            series = pd.to_numeric(df_filtered[temp_field], errors='coerce')
+            df_filtered = df_filtered[(series >= temp_range[0]) & (series <= temp_range[1])]
 
-    if solo_considerazioni:
-        df_filtrato = df_filtrato[df_filtrato["CONSIDERAZIONE POST GARA o TEST"].notna()]
+        # hum range
+        if hum_field and hum_range is not None and hum_field in df_filtered.columns:
+            series = pd.to_numeric(df_filtered[hum_field], errors='coerce')
+            df_filtered = df_filtered[(series >= hum_range[0]) & (series <= hum_range[1])]
 
-    # --- Mostra risultati ---
-    st.write(f"**{len(df_filtrato)} risultati trovati**")
-    st.dataframe(df_filtrato)
+        # considerazioni
+        if mostra_cons and mapping['considerazioni']:
+            df_filtered = df_filtered[df_filtered[mapping['considerazioni']].notna() & (df_filtered[mapping['considerazioni']].astype(str).str.strip() != "")]
 
-    st.download_button(
-        "📥 Scarica risultati filtrati (CSV)",
-        df_filtrato.to_csv(index=False).encode("utf-8"),
-        "risultati.csv",
-        "text/csv"
-    )
+        # ricerca libera q: cerca in tutte le colonne testuali
+        if q:
+            # build boolean mask across object/string columns
+            text_cols = [c for c in df_filtered.columns if df_filtered[c].dtype == "object" or df_filtered[c].dtype.name == "string"]
+            if text_cols:
+                mask = pd.Series(False, index=df_filtered.index)
+                for c in text_cols:
+                    mask = mask | df_filtered[c].astype(str).str.contains(q, case=False, na=False)
+                df_filtered = df_filtered[mask]
+            else:
+                # no textual columns, try all columns by casting
+                mask = pd.Series(False, index=df_filtered.index)
+                for c in df_filtered.columns:
+                    mask = mask | df_filtered[c].astype(str).str.contains(q, case=False, na=False)
+                df_filtered = df_filtered[mask]
 
-# -------------------
-# LOGICA APP
-# -------------------
-if not st.session_state['login_successful']:
-    login_form()
+    # --- Visualizzazione risultati
+    st.markdown(f"### Risultati: {len(df_filtered)} righe")
+    st.dataframe(df_filtered, use_container_width=True)
+
+    # download
+    st.download_button("📥 Scarica risultati (CSV)", df_filtered.to_csv(index=False).encode("utf-8"), "risultati.csv", "text/csv")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# -------------------------
+# App flow
+# -------------------------
+if not st.session_state['auth']:
+    show_login()
 else:
     main_app()
-
-
