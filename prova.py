@@ -146,7 +146,7 @@ def main_app():
     if not st.session_state['show_add_form']:
         if st.button("➕ Aggiungi una nuova riga", key="show_add", use_container_width=True):
             st.session_state['show_add_form'] = True
-            st.experimental_rerun()
+            st.rerun()
     else:
         st.markdown("<div class='card'>", unsafe_allow_html=True)
         st.markdown("## ➕ Inserisci una nuova riga")
@@ -164,10 +164,10 @@ def main_app():
                     st.cache_data.clear()  # aggiorna cache
                     time.sleep(0.5)
                     st.session_state['show_add_form'] = False
-                    st.experimental_rerun()
+                    st.rerun()
         if st.button("❌ Annulla", key="hide_add", use_container_width=True):
             st.session_state['show_add_form'] = False
-            st.experimental_rerun()
+            st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
     # --- Mapping dinamico ---
