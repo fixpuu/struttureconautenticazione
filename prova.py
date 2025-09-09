@@ -84,6 +84,14 @@ def load_data(path="STRUTTURE_cleaned.csv"):
         st.error(f"Errore lettura CSV '{path}': {e}")
         return None
 
+def save_data(df, path="STRUTTURE_cleaned.csv"):
+    try:
+        df.to_csv(path, index=False)
+        return True
+    except Exception as e:
+        st.error(f"Errore salvataggio CSV: {e}")
+        return False
+
 # -------------------------
 # Login UI
 # -------------------------
@@ -123,6 +131,23 @@ def main_app():
     df = load_data()
     if df is None:
         st.stop()
+
+    # --- Sezione aggiornamento CSV ---
+    st.markdown("## ➕ Aggiungi una nuova riga")
+    with st.form("add_row_form"):
+        new_data = {}
+        cols = df.columns.tolist()
+        for col in cols:
+            new_data[col] = st.text_input(f"{col}", key=f"new_{col}")
+        submitted_new = st.form_submit_button("📌 Aggiungi riga")
+        if submitted_new:
+            new_row = {col: (new_data[col] if new_data[col] != "" else None) for col in cols}
+            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+            if save_data(df):
+                st.success("✅ Riga aggiunta con successo!")
+                st.cache_data.clear()  # aggiorna cache
+                time.sleep(0.5)
+                st.experimental_rerun()
 
     # --- Mapping dinamico ---
     def find_col(possibles):
@@ -196,7 +221,6 @@ def main_app():
                 mask |= df_filtrato[c].astype(str).str.contains(search_all, case=False, na=False)
             df_filtrato = df_filtrato[mask]
 
-        # Mostra anche tutte le righe degli stessi giorni trovati
         if col_data and not df_filtrato.empty:
             giorni_trovati = pd.to_datetime(df_filtrato[col_data], errors="coerce").dt.date.unique()
             df_filtrato = df[df[col_data].isin(giorni_trovati)]
