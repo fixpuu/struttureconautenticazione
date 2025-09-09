@@ -76,7 +76,10 @@ if 'login_error' not in st.session_state:
 @st.cache_data
 def load_data(path="STRUTTURE_cleaned.csv"):
     try:
-        return pd.read_csv(path)
+        df = pd.read_csv(path)
+        if "DATA" in df.columns:
+            df["DATA"] = pd.to_datetime(df["DATA"], errors="coerce").dt.date
+        return df
     except Exception as e:
         st.error(f"Errore lettura CSV '{path}': {e}")
         return None
@@ -210,3 +213,4 @@ if not st.session_state['auth']:
     show_login()
 else:
     main_app()
+
