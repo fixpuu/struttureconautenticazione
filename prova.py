@@ -116,6 +116,7 @@ def show_login():
 # -------------------------
 # Main App
 # -------------------------
+
 def main_app():
     st.markdown(f"<h1 style='text-align:center;'>🏔️ STRUTTURE - Dashboard</h1>", unsafe_allow_html=True)
     st.markdown(f"<div class='small-muted' style='text-align:center;'>Benvenuto, <b>{st.session_state.get('user','utente')}</b></div>", unsafe_allow_html=True)
@@ -311,6 +312,7 @@ if not st.session_state['auth']:
     show_login()
 else:
     main_app()
+
 
 
 
