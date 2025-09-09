@@ -100,7 +100,7 @@ def show_login():
                 keyauth_app.login(username, password)
                 st.session_state['auth'] = True
                 st.session_state['user'] = username
-                st.success("✅ Login effettuato!")
+                st.success("✅ Login effettuato! Caricamento...")
                 time.sleep(0.5)
             except Exception as e:
                 st.session_state['login_error'] = str(e)
@@ -131,12 +131,15 @@ def main_app():
     col_luogo = find_col(["luogo_clean","luogo","localita"])
     col_neve  = find_col(["tipo_neve","neve"])
     col_cons  = find_col(["considerazione","note"])
+    col_data  = find_col(["data","giorno","date"])  # <-- colonna chiave per gruppi
 
     col_temp = [c for c in df.columns if "temp" in c.lower()]
     col_hum  = [c for c in df.columns if "hum" in c.lower() or "umid" in c.lower()]
 
+    # -------------------------
+    # Filtri
+    # -------------------------
     st.markdown("### 🎯 Filtri")
-
     with st.form("filters_form"):
         c1, c2 = st.columns(2)
 
@@ -170,7 +173,9 @@ def main_app():
 
         apply_btn = st.form_submit_button("⚡ Applica filtri")
 
-    # --- Applica filtri ---
+    # -------------------------
+    # Applica filtri
+    # -------------------------
     df_filtrato = df.copy()
     if apply_btn:
         if luogo_sel and col_luogo:
@@ -185,15 +190,22 @@ def main_app():
             df_filtrato = df_filtrato[(s >= hum_range[0]) & (s <= hum_range[1])]
         if solo_cons and col_cons:
             df_filtrato = df_filtrato[df_filtrato[col_cons].notna()]
-
         if search_all:
             mask = pd.Series(False, index=df_filtrato.index)
             for c in df_filtrato.columns:
                 mask |= df_filtrato[c].astype(str).str.contains(search_all, case=False, na=False)
             df_filtrato = df_filtrato[mask]
 
+        # 🔑 Espansione per includere tutto il giorno
+        if col_data and not df_filtrato.empty:
+            giorni_match = df_filtrato[col_data].unique()
+            df_filtrato = df[df[col_data].isin(giorni_match)]
+
+    # -------------------------
+    # Risultati
+    # -------------------------
     st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
-    st.dataframe(df_filtrato, use_container_width=True, height=500)
+    st.dataframe(df_filtrato, use_container_width=True)  # senza height fisso
 
     st.download_button("📥 Scarica risultati (CSV)", df_filtrato.to_csv(index=False).encode("utf-8"),
                        "risultati.csv", "text/csv")
