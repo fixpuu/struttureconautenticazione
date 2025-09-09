@@ -195,9 +195,9 @@ def main_app():
                 mask |= df_filtrato[c].astype(str).str.contains(search_all, case=False, na=False)
             df_filtrato = df_filtrato[mask]
 
-        # 👉 Mostra anche tutte le righe degli stessi giorni trovati
+     # 👉 Mostra anche tutte le righe degli stessi giorni trovati
         if col_data and not df_filtrato.empty:
-            giorni_trovati = df_filtrato[col_data].unique()
+            giorni_trovati = pd.to_datetime(df_filtrato[col_data], errors="coerce").dt.date.unique()
             df_filtrato = df[df[col_data].isin(giorni_trovati)]
 
     st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
@@ -213,4 +213,5 @@ if not st.session_state['auth']:
     show_login()
 else:
     main_app()
+
 
