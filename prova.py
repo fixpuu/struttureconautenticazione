@@ -20,13 +20,15 @@ h1,h2,h3 {color:#ffd580; font-weight:600;}
     box-shadow:0 6px 25px rgba(0,0,0,0.6);
     margin-bottom:20px;
 }
-.small-muted {color:#9aa7b0; font-size:13px;}
-.stButton>button {
-    background: linear-gradient(90deg,#ff7b00,#ffb347);
-    color:white; font-weight:600; border-radius:10px; padding:8px 20px;
-    border:none; transition:0.3s;
+.big-button {
+    background: linear-gradient(90deg,#00c6ff,#0072ff);
+    color:white; font-weight:700; font-size:18px;
+    border-radius:15px; padding:20px 40px;
+    border:none; text-align:center;
+    margin:30px auto; display:block;
 }
 .stButton>button:hover {transform:scale(1.05);}
+.small-muted {color:#9aa7b0; font-size:13px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -69,6 +71,8 @@ if 'user' not in st.session_state:
     st.session_state['user'] = None
 if 'login_error' not in st.session_state:
     st.session_state['login_error'] = None
+if 'show_add_form' not in st.session_state:
+    st.session_state['show_add_form'] = False
 
 # -------------------------
 # Data loader
@@ -77,6 +81,11 @@ if 'login_error' not in st.session_state:
 def load_data(path="STRUTTURE_cleaned.csv"):
     try:
         df = pd.read_csv(path)
+
+        # Rimuovi colonne indesiderate
+        drop_cols = ["luogo_clean", "tipo_neve_clean", "hum_inizio_sospetto", "hum_fine_sospetto"]
+        df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
+
         if "DATA" in df.columns:
             df["DATA"] = pd.to_datetime(df["DATA"], errors="coerce").dt.date
         return df
@@ -132,22 +141,34 @@ def main_app():
     if df is None:
         st.stop()
 
-    # --- Sezione aggiornamento CSV ---
-    st.markdown("## ➕ Aggiungi una nuova riga")
-    with st.form("add_row_form"):
-        new_data = {}
-        cols = df.columns.tolist()
-        for col in cols:
-            new_data[col] = st.text_input(f"{col}", key=f"new_{col}")
-        submitted_new = st.form_submit_button("📌 Aggiungi riga")
-        if submitted_new:
-            new_row = {col: (new_data[col] if new_data[col] != "" else None) for col in cols}
-            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-            if save_data(df):
-                st.success("✅ Riga aggiunta con successo!")
-                st.cache_data.clear()  # aggiorna cache
-                time.sleep(0.5)
-                st.experimental_rerun()
+    # --- Pulsante per mostrare form ---
+    st.markdown("### ✨ Gestione dati")
+    if not st.session_state['show_add_form']:
+        if st.button("➕ Aggiungi una nuova riga", key="show_add", use_container_width=True):
+            st.session_state['show_add_form'] = True
+            st.experimental_rerun()
+    else:
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
+        st.markdown("## ➕ Inserisci una nuova riga")
+        with st.form("add_row_form"):
+            new_data = {}
+            cols = df.columns.tolist()
+            for col in cols:
+                new_data[col] = st.text_input(f"{col}", key=f"new_{col}")
+            submitted_new = st.form_submit_button("📌 Aggiungi riga")
+            if submitted_new:
+                new_row = {col: (new_data[col] if new_data[col] != "" else None) for col in cols}
+                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+                if save_data(df):
+                    st.success("✅ Riga aggiunta con successo!")
+                    st.cache_data.clear()  # aggiorna cache
+                    time.sleep(0.5)
+                    st.session_state['show_add_form'] = False
+                    st.experimental_rerun()
+        if st.button("❌ Annulla", key="hide_add", use_container_width=True):
+            st.session_state['show_add_form'] = False
+            st.experimental_rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
     # --- Mapping dinamico ---
     def find_col(possibles):
@@ -158,7 +179,7 @@ def main_app():
         return None
 
     col_data  = find_col(["data"])
-    col_luogo = find_col(["luogo_clean","luogo","localita"])
+    col_luogo = find_col(["luogo","localita"])
     col_neve  = find_col(["tipo_neve","neve"])
     col_cons  = find_col(["considerazione","note"])
     col_temp  = [c for c in df.columns if "temp" in c.lower()]
