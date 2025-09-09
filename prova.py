@@ -121,7 +121,8 @@ def main_app():
     st.markdown(f"<div class='small-muted' style='text-align:center;'>Benvenuto, <b>{st.session_state.get('user','utente')}</b></div>", unsafe_allow_html=True)
 
     df = load_data()
-    if df is None: st.stop()
+    if df is None: 
+        st.stop()
 
     # --- Mapping dinamico ---
     def find_col(possibles):
@@ -195,16 +196,113 @@ def main_app():
                 mask |= df_filtrato[c].astype(str).str.contains(search_all, case=False, na=False)
             df_filtrato = df_filtrato[mask]
 
-     # 👉 Mostra anche tutte le righe degli stessi giorni trovati
+        # 👉 Mostra anche tutte le righe degli stessi giorni trovati
         if col_data and not df_filtrato.empty:
             giorni_trovati = pd.to_datetime(df_filtrato[col_data], errors="coerce").dt.date.unique()
             df_filtrato = df[df[col_data].isin(giorni_trovati)]
 
     st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
-st.dataframe(df_filtrato, width="stretch", height=500)
+    st.dataframe(df_filtrato, width="stretch", height=500)
 
-    st.download_button("📥 Scarica risultati (CSV)", df_filtrato.to_csv(index=False).encode("utf-8"),
-                       "risultati.csv", "text/csv")
+    st.download_button(
+        "📥 Scarica risultati (CSV)",
+        df_filtrato.to_csv(index=False).encode("utf-8"),
+        "risultati.csv",
+        "text/csv"
+    )def main_app():
+    st.markdown(f"<h1 style='text-align:center;'>🏔️ STRUTTURE - Dashboard</h1>", unsafe_allow_html=True)
+    st.markdown(f"<div class='small-muted' style='text-align:center;'>Benvenuto, <b>{st.session_state.get('user','utente')}</b></div>", unsafe_allow_html=True)
+
+    df = load_data()
+    if df is None: 
+        st.stop()
+
+    # --- Mapping dinamico ---
+    def find_col(possibles):
+        for p in possibles:
+            for c in df.columns:
+                if p.lower() in c.lower():
+                    return c
+        return None
+
+    col_data  = find_col(["data"])   # colonna giorno test
+    col_luogo = find_col(["luogo_clean","luogo","localita"])
+    col_neve  = find_col(["tipo_neve","neve"])
+    col_cons  = find_col(["considerazione","note"])
+    col_temp  = [c for c in df.columns if "temp" in c.lower()]
+    col_hum   = [c for c in df.columns if "hum" in c.lower() or "umid" in c.lower()]
+
+    st.markdown("### 🎯 Filtri")
+
+    with st.form("filters_form"):
+        c1, c2 = st.columns(2)
+
+        with c1:
+            luogo_sel = None
+            if col_luogo:
+                luoghi = sorted(df[col_luogo].dropna().unique())
+                luogo_sel = st.multiselect("📍 Seleziona luogo", luoghi)
+
+            tipo_neve = st.text_input("❄️ Tipo di neve (keyword)") if col_neve else None
+            search_all = st.text_input("🔎 Ricerca libera")
+
+        with c2:
+            temp_field = st.selectbox("🌡️ Campo temperatura", col_temp) if col_temp else None
+            temp_range = None
+            if temp_field:
+                s = pd.to_numeric(df[temp_field], errors="coerce")
+                if s.notna().sum() > 0:
+                    min_t, max_t = float(s.min()), float(s.max())
+                    temp_range = st.slider("Intervallo temperatura", min_value=min_t, max_value=max_t, value=(min_t, max_t))
+
+            hum_field = st.selectbox("💧 Campo umidità", col_hum) if col_hum else None
+            hum_range = None
+            if hum_field:
+                s = pd.to_numeric(df[hum_field], errors="coerce")
+                if s.notna().sum() > 0:
+                    min_h, max_h = float(s.min()), float(s.max())
+                    hum_range = st.slider("Intervallo umidità", min_value=min_h, max_value=max_h, value=(min_h, max_h))
+
+            solo_cons = st.checkbox("📝 Solo righe con considerazioni", value=False) if col_cons else False
+
+        apply_btn = st.form_submit_button("⚡ Applica filtri")
+
+    # --- Applica filtri ---
+    df_filtrato = df.copy()
+    if apply_btn:
+        if luogo_sel and col_luogo:
+            df_filtrato = df_filtrato[df_filtrato[col_luogo].isin(luogo_sel)]
+        if tipo_neve and col_neve:
+            df_filtrato = df_filtrato[df_filtrato[col_neve].astype(str).str.contains(tipo_neve, case=False, na=False)]
+        if temp_field and temp_range:
+            s = pd.to_numeric(df_filtrato[temp_field], errors="coerce")
+            df_filtrato = df_filtrato[(s >= temp_range[0]) & (s <= temp_range[1])]
+        if hum_field and hum_range:
+            s = pd.to_numeric(df_filtrato[hum_field], errors="coerce")
+            df_filtrato = df_filtrato[(s >= hum_range[0]) & (s <= hum_range[1])]
+        if solo_cons and col_cons:
+            df_filtrato = df_filtrato[df_filtrato[col_cons].notna()]
+
+        if search_all:
+            mask = pd.Series(False, index=df_filtrato.index)
+            for c in df_filtrato.columns:
+                mask |= df_filtrato[c].astype(str).str.contains(search_all, case=False, na=False)
+            df_filtrato = df_filtrato[mask]
+
+        # 👉 Mostra anche tutte le righe degli stessi giorni trovati
+        if col_data and not df_filtrato.empty:
+            giorni_trovati = pd.to_datetime(df_filtrato[col_data], errors="coerce").dt.date.unique()
+            df_filtrato = df[df[col_data].isin(giorni_trovati)]
+
+    st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
+    st.dataframe(df_filtrato, width="stretch", height=500)
+
+    st.download_button(
+        "📥 Scarica risultati (CSV)",
+        df_filtrato.to_csv(index=False).encode("utf-8"),
+        "risultati.csv",
+        "text/csv"
+    )
 
 # -------------------------
 # Flow
@@ -213,6 +311,7 @@ if not st.session_state['auth']:
     show_login()
 else:
     main_app()
+
 
 
 
