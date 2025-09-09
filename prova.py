@@ -177,6 +177,8 @@ def main_app():
     # Applica filtri
     # -------------------------
     df_filtrato = df.copy()
+    giorni_match = []
+
     if apply_btn:
         if luogo_sel and col_luogo:
             df_filtrato = df_filtrato[df_filtrato[col_luogo].isin(luogo_sel)]
@@ -196,7 +198,7 @@ def main_app():
                 mask |= df_filtrato[c].astype(str).str.contains(search_all, case=False, na=False)
             df_filtrato = df_filtrato[mask]
 
-        # 🔑 Espansione per includere tutto il giorno
+        # 🔑 Espansione: prendi tutti i giorni trovati e includi TUTTE le righe di quei giorni
         if col_data and not df_filtrato.empty:
             giorni_match = df_filtrato[col_data].unique()
             df_filtrato = df[df[col_data].isin(giorni_match)]
@@ -217,3 +219,4 @@ if not st.session_state['auth']:
     show_login()
 else:
     main_app()
+
