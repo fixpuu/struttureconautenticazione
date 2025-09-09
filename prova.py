@@ -201,7 +201,7 @@ def main_app():
             df_filtrato = df[df[col_data].isin(giorni_trovati)]
 
     st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
-    st.dataframe(df_filtrato, use_container_width=True, height=500)
+st.dataframe(df_filtrato, width="stretch", height=500)
 
     st.download_button("📥 Scarica risultati (CSV)", df_filtrato.to_csv(index=False).encode("utf-8"),
                        "risultati.csv", "text/csv")
@@ -213,5 +213,6 @@ if not st.session_state['auth']:
     show_login()
 else:
     main_app()
+
 
 
