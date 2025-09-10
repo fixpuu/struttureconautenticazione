@@ -3,6 +3,8 @@ import pandas as pd
 import time
 import sys
 import hashlib
+import requests
+from datetime import datetime
 from keyauth import api
 
 # -------------------------
@@ -73,16 +75,18 @@ if 'login_error' not in st.session_state:
     st.session_state['login_error'] = None
 if 'show_add_form' not in st.session_state:
     st.session_state['show_add_form'] = False
+if 'seller_key' not in st.session_state:
+    st.session_state['seller_key'] = None  # opzionale: memorizza seller key per la sessione
 
 # -------------------------
-# Data loader
+# Data loader / saver
 # -------------------------
 @st.cache_data
 def load_data(path="STRUTTURE_cleaned.csv"):
     try:
         df = pd.read_csv(path)
 
-        # Rimuovi colonne indesiderate
+        # Rimuovi colonne indesiderate se presenti
         drop_cols = ["luogo_clean", "tipo_neve_clean", "hum_inizio_sospetto", "hum_fine_sospetto"]
         df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
 
@@ -131,6 +135,55 @@ def show_login():
         st.stop()
 
 # -------------------------
+# Helper: Seller API call per userdata
+# -------------------------
+def get_user_userdata_from_seller(seller_key: str, username: str, timeout=8):
+    """
+    Chiama la Seller API di KeyAuth per ottenere userdata di `username`.
+    Ritorna tuple (success:bool, data_or_message:dict/str)
+    """
+    url = "https://keyauth.win/api/seller/"
+    params = {
+        "sellerkey": seller_key,
+        "type": "userdata",
+        "user": username
+    }
+    try:
+        resp = requests.get(url, params=params, timeout=timeout)
+        resp.raise_for_status()
+        data = resp.json()
+        # se success False, ritorna False + message
+        if not data.get("success", False):
+            # alcuni endpoint restituiscono {"success": False, "message": "..."}
+            return False, data.get("message", data)
+        return True, data
+    except requests.exceptions.RequestException as e:
+        return False, f"Errore richiesta Seller API: {e}"
+    except ValueError:
+        return False, "Risposta non valida (non JSON) dalla Seller API."
+
+def _format_expiry(expiry_value):
+    """Prova a convertire expiry in formato leggibile."""
+    if expiry_value is None:
+        return "-"
+    # se è numerico (timestamp)
+    try:
+        e_int = int(expiry_value)
+        # timestamp in seconds (>= 1e9)
+        if e_int > 1_000_000_000:
+            return datetime.utcfromtimestamp(e_int).strftime("%Y-%m-%d %H:%M:%S UTC")
+    except Exception:
+        pass
+    # prova con pandas to_datetime
+    try:
+        dt = pd.to_datetime(expiry_value, errors="coerce")
+        if pd.notna(dt):
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        pass
+    return str(expiry_value)
+
+# -------------------------
 # Main App
 # -------------------------
 def main_app():
@@ -141,7 +194,7 @@ def main_app():
     if df is None:
         st.stop()
 
-    # --- Pulsante per mostrare form ---
+    # --- Pulsante per mostrare form aggiunta ---
     st.markdown("### ✨ Gestione dati")
     if not st.session_state['show_add_form']:
         if st.button("➕ Aggiungi una nuova riga", key="show_add", use_container_width=True):
@@ -185,20 +238,19 @@ def main_app():
     col_temp  = [c for c in df.columns if "temp" in c.lower()]
     col_hum   = [c for c in df.columns if "hum" in c.lower() or "umid" in c.lower()]
 
+    # -------------------------
+    # Filtri
+    # -------------------------
     st.markdown("### 🎯 Filtri")
-
     with st.form("filters_form"):
         c1, c2 = st.columns(2)
-
         with c1:
             luogo_sel = None
             if col_luogo:
                 luoghi = sorted(df[col_luogo].dropna().unique())
                 luogo_sel = st.multiselect("📍 Seleziona luogo", luoghi)
-
             tipo_neve = st.text_input("❄️ Tipo di neve (keyword)") if col_neve else None
             search_all = st.text_input("🔎 Ricerca libera")
-
         with c2:
             temp_field = st.selectbox("🌡️ Campo temperatura", col_temp) if col_temp else None
             temp_range = None
@@ -207,7 +259,6 @@ def main_app():
                 if s.notna().sum() > 0:
                     min_t, max_t = float(s.min()), float(s.max())
                     temp_range = st.slider("Intervallo temperatura", min_value=min_t, max_value=max_t, value=(min_t, max_t))
-
             hum_field = st.selectbox("💧 Campo umidità", col_hum) if col_hum else None
             hum_range = None
             if hum_field:
@@ -215,9 +266,7 @@ def main_app():
                 if s.notna().sum() > 0:
                     min_h, max_h = float(s.min()), float(s.max())
                     hum_range = st.slider("Intervallo umidità", min_value=min_h, max_value=max_h, value=(min_h, max_h))
-
             solo_cons = st.checkbox("📝 Solo righe con considerazioni", value=False) if col_cons else False
-
         apply_btn = st.form_submit_button("⚡ Applica filtri")
 
     # --- Applica filtri ---
@@ -235,51 +284,110 @@ def main_app():
             df_filtrato = df_filtrato[(s >= hum_range[0]) & (s <= hum_range[1])]
         if solo_cons and col_cons:
             df_filtrato = df_filtrato[df_filtrato[col_cons].notna()]
-
         if search_all:
             mask = pd.Series(False, index=df_filtrato.index)
             for c in df_filtrato.columns:
                 mask |= df_filtrato[c].astype(str).str.contains(search_all, case=False, na=False)
             df_filtrato = df_filtrato[mask]
-
         if col_data and not df_filtrato.empty:
             giorni_trovati = pd.to_datetime(df_filtrato[col_data], errors="coerce").dt.date.unique()
             df_filtrato = df[df[col_data].isin(giorni_trovati)]
 
     st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
     st.dataframe(df_filtrato, width="stretch", height=500)
+    st.download_button("📥 Scarica risultati (CSV)", df_filtrato.to_csv(index=False).encode("utf-8"),
+                       "risultati.csv", "text/csv")
 
-    st.download_button(
-        "📥 Scarica risultati (CSV)",
-        df_filtrato.to_csv(index=False).encode("utf-8"),
-        "risultati.csv",
-        "text/csv"
-    )
-# -------------------------
-# Elimina riga
-# -------------------------
-    st.markdown("### 🗑️ Elimina una riga")
-    if len(df) > 0:
-        with st.form("delete_row_form"):
-            idx_to_delete = st.number_input(
-                "Inserisci l'indice della riga da cancellare",
-                min_value=0,
-                max_value=len(df)-1,
-                step=1
-            )
-            st.dataframe(df.iloc[[idx_to_delete]])  # mostra anteprima riga
-            delete_btn = st.form_submit_button("❌ Elimina questa riga")
+    # -------------------------
+    # Controlla abbonamento (KeyAuth Seller API)
+    # -------------------------
+    st.markdown("### 🔎 Controlla abbonamento KeyAuth (admin)")
+    st.markdown("Puoi controllare lo stato e la scadenza delle subscription di un utente. La Seller Key è necessaria per leggere questi dati.")
+    with st.form("check_sub_form"):
+        c1, c2 = st.columns([2,1])
+        with c1:
+            check_username = st.text_input("👤 Username da controllare")
+        with c2:
+            # preferisci avere la seller key in st.secrets['KEYAUTH_SELLER_KEY'] oppure inserirla qui (temporanea)
+            default_seller = st.session_state.get('seller_key') or st.secrets.get("KEYAUTH_SELLER_KEY") if hasattr(st, "secrets") else None
+            seller_input = st.text_input("🔑 Seller Key (admin)", type="password", value=default_seller if default_seller else "")
+            remember = st.checkbox("Ricorda seller key per questa sessione", value=bool(st.session_state.get('seller_key')))
+        check_btn = st.form_submit_button("📡 Controlla abbonamento")
 
-        if delete_btn:
-            df = df.drop(df.index[idx_to_delete]).reset_index(drop=True)
-            if save_data(df):
-                st.success(f"✅ Riga {idx_to_delete} eliminata con successo!")
-                st.cache_data.clear()
-                time.sleep(0.5)
-                st.rerun()
-    else:
-        st.info("📂 Nessuna riga disponibile da eliminare.")
-        
+    if check_btn:
+        if not check_username:
+            st.error("Inserisci lo username da controllare.")
+        elif not seller_input:
+            st.error("Inserisci la seller key (puoi salvarla in st.secrets o usarla qui).")
+        else:
+            if remember:
+                st.session_state['seller_key'] = seller_input
+            st.info(f"Richiedo dati per `{check_username}` ...")
+            ok, res = get_user_userdata_from_seller(seller_input, check_username)
+            if not ok:
+                st.error(f"Errore: {res}")
+            else:
+                data = res
+                # Informazioni generali
+                st.markdown("#### 🔰 Dati utente")
+                cols = {
+                    "Username": data.get("username"),
+                    "HWID": data.get("hwid"),
+                    "IP": data.get("ip"),
+                    "Banned": data.get("banned"),
+                    "Created": data.get("createdate"),
+                    "Last login": data.get("lastlogin"),
+                    "Cooldown": data.get("cooldown")
+                }
+                md = "\n".join([f"- **{k}**: {v}" for k, v in cols.items()])
+                st.markdown(md)
+
+                # Subscriptions
+                subs = data.get("subscriptions", []) or []
+                if subs:
+                    st.markdown("#### 📦 Subscriptions")
+                    rows = []
+                    now_ts = int(datetime.utcnow().timestamp())
+                    for s_item in subs:
+                        # s_item potrebbe essere dict con keys: subscription, expiry, timeleft, active ecc.
+                        name = s_item.get("subscription", s_item.get("name", "—"))
+                        expiry_raw = s_item.get("expiry", s_item.get("expires", None))
+                        expiry_fmt = _format_expiry(expiry_raw)
+                        timeleft = s_item.get("timeleft", None)
+                        # calcolo stato se possibile
+                        active = None
+                        try:
+                            if timeleft is not None:
+                                active = (int(timeleft) > 0)
+                            elif expiry_raw:
+                                # prova a interpretare expiry come ts
+                                e_int = int(expiry_raw)
+                                active = (e_int > now_ts)
+                        except Exception:
+                            active = None
+                        rows.append({
+                            "subscription": name,
+                            "expiry": expiry_fmt,
+                            "timeleft": timeleft if timeleft is not None else "-",
+                            "active": "✅" if active else ("❌" if active is False else "-")
+                        })
+                    st.table(pd.DataFrame(rows))
+                else:
+                    st.info("Nessuna subscription trovata per questo utente.")
+
+                # Uservars (se presenti)
+                uservars = data.get("uservars", []) or []
+                if uservars:
+                    st.markdown("#### 🧾 User variables")
+                    try:
+                        # uservars spesso è lista di dict {"var":"name","data":"value"} oppure [{"name":.., "value":..}]
+                        df_vars = pd.DataFrame(uservars)
+                        st.dataframe(df_vars)
+                    except Exception:
+                        st.write(uservars)
+
+                st.success("🔍 Controllo completato.")
+
 # -------------------------
 # Flow
 # -------------------------
@@ -287,4 +395,3 @@ if not st.session_state['auth']:
     show_login()
 else:
     main_app()
-
