@@ -6,101 +6,53 @@ import hashlib
 from keyauth import api
 
 # -------------------------
-# Page config + CSS + Snowfall
+# Page config + CSS
 # -------------------------
 st.set_page_config(page_title="🔍 STRUTTURE", page_icon="🏔️", layout="wide")
+
 st.markdown("""
 <style>
-body {
-    background-color: #0f111a;
-    color: #f0f0f0;
-    font-family: 'Segoe UI', sans-serif;
-    overflow-x: hidden;
+/* Background full-screen con immagine e overlay scuro */
+.stApp {
+    background: url("https://images.unsplash.com/photo-1608889175123-8a33f57e4dc0?ixlib=rb-4.0.3&auto=format&fit=crop&w=1950&q=80") no-repeat center center fixed;
+    background-size: cover;
 }
-h1,h2,h3 {color:#ffd580; font-weight:600;}
+.stApp::before {
+    content: "";
+    position: fixed;
+    top:0; left:0;
+    width:100%; height:100%;
+    background: rgba(0,0,0,0.6); /* overlay scuro */
+    z-index: -1;
+}
+
+/* Titoli */
+h1,h2,h3 {
+    color:#ffd580;
+    font-weight:600;
+}
+
+/* Card effetto vetro */
 .card {
-    background: linear-gradient(135deg,#0b1622,#1a2a40);
+    background: rgba(15, 17, 26, 0.75);
+    backdrop-filter: blur(8px);
     padding:20px;
     border-radius:15px;
     box-shadow:0 6px 25px rgba(0,0,0,0.6);
     margin-bottom:20px;
-    position: relative;
-    z-index: 2;
 }
-.big-button {
-    background: linear-gradient(90deg,#00c6ff,#0072ff);
-    color:white; font-weight:700; font-size:18px;
-    border-radius:15px; padding:20px 40px;
-    border:none; text-align:center;
-    margin:30px auto; display:block;
+
+/* Testo secondario */
+.small-muted {color:#ccc; font-size:13px;}
+
+/* Bottoni */
+.stButton>button {
+    background: linear-gradient(90deg,#ff7b00,#ffb347);
+    color:white; font-weight:600; border-radius:10px; padding:8px 20px;
+    border:none; transition:0.3s;
 }
 .stButton>button:hover {transform:scale(1.05);}
-.small-muted {color:#9aa7b0; font-size:13px;}
-canvas#snow-canvas {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 1;
-    pointer-events: none;
-}
 </style>
-<canvas id="snow-canvas"></canvas>
-<script>
-const canvas = document.getElementById('snow-canvas');
-const ctx = canvas.getContext('2d');
-let width = canvas.width = window.innerWidth;
-let height = canvas.height = window.innerHeight;
-
-let numFlakes = 100;
-let flakes = [];
-
-function createFlakes() {
-  for (let i = 0; i < numFlakes; i++) {
-    flakes.push({
-      x: Math.random() * width,
-      y: Math.random() * height,
-      r: Math.random() * 4 + 1,
-      d: Math.random() + 1
-    });
-  }
-}
-
-function drawFlakes() {
-  ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = "white";
-  ctx.beginPath();
-  for (let i = 0; i < numFlakes; i++) {
-    let f = flakes[i];
-    ctx.moveTo(f.x, f.y);
-    ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2, true);
-  }
-  ctx.fill();
-  moveFlakes();
-}
-
-let angle = 0;
-function moveFlakes() {
-  angle += 0.01;
-  for (let i = 0; i < numFlakes; i++) {
-    let f = flakes[i];
-    f.y += Math.pow(f.d, 2) + 1;
-    f.x += Math.sin(angle) * 2;
-    if (f.y > height) {
-      flakes[i] = {x: Math.random() * width, y: 0, r: f.r, d: f.d};
-    }
-  }
-}
-
-setInterval(drawFlakes, 25);
-createFlakes();
-
-window.addEventListener("resize", () => {
-  width = canvas.width = window.innerWidth;
-  height = canvas.height = window.innerHeight;
-});
-</script>
 """, unsafe_allow_html=True)
 
 # -------------------------
@@ -152,6 +104,8 @@ if 'show_add_form' not in st.session_state:
 def load_data(path="STRUTTURE_cleaned.csv"):
     try:
         df = pd.read_csv(path)
+
+        # Rimuovi colonne indesiderate
         drop_cols = ["luogo_clean", "tipo_neve_clean", "hum_inizio_sospetto", "hum_fine_sospetto"]
         df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
 
@@ -211,13 +165,13 @@ def main_app():
         st.stop()
 
     # --- Pulsante per mostrare form ---
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown("### ✨ Gestione dati")
     if not st.session_state['show_add_form']:
         if st.button("➕ Aggiungi una nuova riga", key="show_add", use_container_width=True):
             st.session_state['show_add_form'] = True
             st.rerun()
     else:
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
         st.markdown("## ➕ Inserisci una nuova riga")
         with st.form("add_row_form"):
             new_data = {}
@@ -237,7 +191,7 @@ def main_app():
         if st.button("❌ Annulla", key="hide_add", use_container_width=True):
             st.session_state['show_add_form'] = False
             st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # --- Mapping dinamico ---
     def find_col(possibles):
@@ -254,6 +208,7 @@ def main_app():
     col_temp  = [c for c in df.columns if "temp" in c.lower()]
     col_hum   = [c for c in df.columns if "hum" in c.lower() or "umid" in c.lower()]
 
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown("### 🎯 Filtri")
 
     with st.form("filters_form"):
@@ -316,7 +271,7 @@ def main_app():
             df_filtrato = df[df[col_data].isin(giorni_trovati)]
 
     st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
-    st.dataframe(df_filtrato, width="stretch", height=500)
+    st.dataframe(df_filtrato, use_container_width=True, height=500)
 
     st.download_button(
         "📥 Scarica risultati (CSV)",
@@ -324,6 +279,7 @@ def main_app():
         "risultati.csv",
         "text/csv"
     )
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # -------------------------
 # Flow
