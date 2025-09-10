@@ -255,7 +255,31 @@ def main_app():
         "risultati.csv",
         "text/csv"
     )
+# -------------------------
+# Elimina riga
+# -------------------------
+    st.markdown("### 🗑️ Elimina una riga")
+    if len(df) > 0:
+        with st.form("delete_row_form"):
+            idx_to_delete = st.number_input(
+                "Inserisci l'indice della riga da cancellare",
+                min_value=0,
+                max_value=len(df)-1,
+                step=1
+            )
+            st.dataframe(df.iloc[[idx_to_delete]])  # mostra anteprima riga
+            delete_btn = st.form_submit_button("❌ Elimina questa riga")
 
+        if delete_btn:
+            df = df.drop(df.index[idx_to_delete]).reset_index(drop=True)
+            if save_data(df):
+                st.success(f"✅ Riga {idx_to_delete} eliminata con successo!")
+                st.cache_data.clear()
+                time.sleep(0.5)
+                st.rerun()
+    else:
+        st.info("📂 Nessuna riga disponibile da eliminare.")
+        
 # -------------------------
 # Flow
 # -------------------------
@@ -263,3 +287,4 @@ if not st.session_state['auth']:
     show_login()
 else:
     main_app()
+
