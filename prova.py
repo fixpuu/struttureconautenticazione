@@ -3,9 +3,9 @@ import pandas as pd
 import time
 import sys
 import hashlib
-import requests
-from datetime import datetime
 from keyauth import api
+import streamlit.components.v1 as components
+from datetime import datetime
 
 # -------------------------
 # Page config + CSS
@@ -13,6 +13,7 @@ from keyauth import api
 st.set_page_config(page_title="🔍 STRUTTURE", page_icon="🏔️", layout="wide")
 st.markdown("""
 <style>
+/* Basic theme */
 body {background-color: #0f111a; color: #f0f0f0; font-family: 'Segoe UI', sans-serif;}
 h1,h2,h3 {color:#ffd580; font-weight:600;}
 .card {
@@ -25,14 +26,83 @@ h1,h2,h3 {color:#ffd580; font-weight:600;}
 .big-button {
     background: linear-gradient(90deg,#00c6ff,#0072ff);
     color:white; font-weight:700; font-size:18px;
-    border-radius:15px; padding:20px 40px;
+    border-radius:15px; padding:14px 28px;
     border:none; text-align:center;
-    margin:30px auto; display:block;
+    margin:18px 0;
 }
-.stButton>button:hover {transform:scale(1.05);}
+.stButton>button:hover {transform:scale(1.03);}
+/* small text */
 .small-muted {color:#9aa7b0; font-size:13px;}
+/* ensure Streamlit app content is above background */
+#snow-canvas { position: fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:-1; }
+
+/* card inside app for forms */
+.form-card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    padding: 16px;
+    border-radius: 12px;
+    margin-bottom: 14px;
+}
 </style>
 """, unsafe_allow_html=True)
+
+# -------------------------
+# Snow background (canvas JS)
+# -------------------------
+snow_html = """
+<canvas id="snow-canvas"></canvas>
+<script>
+const canvas = document.getElementById('snow-canvas');
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const ctx = canvas.getContext('2d');
+const flakes = [];
+const numFlakes = Math.floor(window.innerWidth / 10);
+
+for (let i = 0; i < numFlakes; i++) {
+  flakes.push({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    r: Math.random() * 3 + 1,
+    d: Math.random() * numFlakes
+  });
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.beginPath();
+  for (let i = 0; i < flakes.length; i++) {
+    const f = flakes[i];
+    ctx.moveTo(f.x, f.y);
+    ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2, true);
+  }
+  ctx.fill();
+  update();
+}
+let angle = 0;
+function update() {
+  angle += 0.01;
+  for (let i = 0; i < flakes.length; i++) {
+    const f = flakes[i];
+    f.y += Math.cos(angle + f.d) + 1 + f.r / 2;
+    f.x += Math.sin(angle) * 2;
+    if (f.x > canvas.width + 5 || f.x < -5 || f.y > canvas.height) {
+      f.x = Math.random() * canvas.width;
+      f.y = -10;
+    }
+  }
+}
+setInterval(draw, 30);
+</script>
+"""
+# Render with a small height but canvas is fixed so covers whole viewport
+components.html(snow_html, height=10)
 
 # -------------------------
 # KeyAuth init
@@ -65,7 +135,7 @@ def get_keyauth_app():
 keyauth_app = get_keyauth_app()
 
 # -------------------------
-# Session state
+# Session state defaults
 # -------------------------
 if 'auth' not in st.session_state:
     st.session_state['auth'] = False
@@ -75,8 +145,6 @@ if 'login_error' not in st.session_state:
     st.session_state['login_error'] = None
 if 'show_add_form' not in st.session_state:
     st.session_state['show_add_form'] = False
-if 'seller_key' not in st.session_state:
-    st.session_state['seller_key'] = None  # opzionale: memorizza seller key per la sessione
 
 # -------------------------
 # Data loader / saver
@@ -85,11 +153,9 @@ if 'seller_key' not in st.session_state:
 def load_data(path="STRUTTURE_cleaned.csv"):
     try:
         df = pd.read_csv(path)
-
-        # Rimuovi colonne indesiderate se presenti
+        # drop some unwanted columns if present
         drop_cols = ["luogo_clean", "tipo_neve_clean", "hum_inizio_sospetto", "hum_fine_sospetto"]
         df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
-
         if "DATA" in df.columns:
             df["DATA"] = pd.to_datetime(df["DATA"], errors="coerce").dt.date
         return df
@@ -135,55 +201,6 @@ def show_login():
         st.stop()
 
 # -------------------------
-# Helper: Seller API call per userdata
-# -------------------------
-def get_user_userdata_from_seller(seller_key: str, username: str, timeout=8):
-    """
-    Chiama la Seller API di KeyAuth per ottenere userdata di `username`.
-    Ritorna tuple (success:bool, data_or_message:dict/str)
-    """
-    url = "https://keyauth.win/api/seller/"
-    params = {
-        "sellerkey": seller_key,
-        "type": "userdata",
-        "user": username
-    }
-    try:
-        resp = requests.get(url, params=params, timeout=timeout)
-        resp.raise_for_status()
-        data = resp.json()
-        # se success False, ritorna False + message
-        if not data.get("success", False):
-            # alcuni endpoint restituiscono {"success": False, "message": "..."}
-            return False, data.get("message", data)
-        return True, data
-    except requests.exceptions.RequestException as e:
-        return False, f"Errore richiesta Seller API: {e}"
-    except ValueError:
-        return False, "Risposta non valida (non JSON) dalla Seller API."
-
-def _format_expiry(expiry_value):
-    """Prova a convertire expiry in formato leggibile."""
-    if expiry_value is None:
-        return "-"
-    # se è numerico (timestamp)
-    try:
-        e_int = int(expiry_value)
-        # timestamp in seconds (>= 1e9)
-        if e_int > 1_000_000_000:
-            return datetime.utcfromtimestamp(e_int).strftime("%Y-%m-%d %H:%M:%S UTC")
-    except Exception:
-        pass
-    # prova con pandas to_datetime
-    try:
-        dt = pd.to_datetime(expiry_value, errors="coerce")
-        if pd.notna(dt):
-            return dt.strftime("%Y-%m-%d %H:%M:%S")
-    except Exception:
-        pass
-    return str(expiry_value)
-
-# -------------------------
 # Main App
 # -------------------------
 def main_app():
@@ -206,16 +223,38 @@ def main_app():
         with st.form("add_row_form"):
             new_data = {}
             cols = df.columns.tolist()
+            # generiamo input coerenti: se la colonna sembra una data usiamo date_input, se numerica number_input, altrimenti text_input
             for col in cols:
-                new_data[col] = st.text_input(f"{col}", key=f"new_{col}")
+                lower = col.lower()
+                if "date" in lower or "data" == lower or "giorno" in lower:
+                    new_data[col] = st.date_input(f"{col}", key=f"new_{col}")
+                elif any(k in lower for k in ["temp","temper","°","celsius","f°"]) :
+                    new_data[col] = st.number_input(f"{col}", value=0.0, format="%.2f", key=f"new_{col}")
+                elif any(k in lower for k in ["hum","umid","percent"]):
+                    new_data[col] = st.number_input(f"{col}", value=0.0, format="%.2f", key=f"new_{col}")
+                elif any(k in lower for k in ["note","consider","consid","comment"]):
+                    new_data[col] = st.text_area(f"{col}", key=f"new_{col}")
+                else:
+                    new_data[col] = st.text_input(f"{col}", key=f"new_{col}")
             submitted_new = st.form_submit_button("📌 Aggiungi riga")
             if submitted_new:
-                new_row = {col: (new_data[col] if new_data[col] != "" else None) for col in cols}
-                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-                if save_data(df):
+                # Normalizza valori: date -> string iso, empty string -> None
+                new_row = {}
+                for col, val in new_data.items():
+                    if isinstance(val, (datetime,)) or (hasattr(val, "isoformat") and hasattr(val, "year")):
+                        try:
+                            new_row[col] = val.isoformat()
+                        except Exception:
+                            new_row[col] = str(val)
+                    elif val == "":
+                        new_row[col] = None
+                    else:
+                        new_row[col] = val
+                df_new = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+                if save_data(df_new):
                     st.success("✅ Riga aggiunta con successo!")
-                    st.cache_data.clear()  # aggiorna cache
-                    time.sleep(0.5)
+                    st.cache_data.clear()  # aggiorna cache di load_data
+                    time.sleep(0.4)
                     st.session_state['show_add_form'] = False
                     st.rerun()
         if st.button("❌ Annulla", key="hide_add", use_container_width=True):
@@ -244,13 +283,16 @@ def main_app():
     st.markdown("### 🎯 Filtri")
     with st.form("filters_form"):
         c1, c2 = st.columns(2)
+
         with c1:
             luogo_sel = None
             if col_luogo:
                 luoghi = sorted(df[col_luogo].dropna().unique())
                 luogo_sel = st.multiselect("📍 Seleziona luogo", luoghi)
+
             tipo_neve = st.text_input("❄️ Tipo di neve (keyword)") if col_neve else None
             search_all = st.text_input("🔎 Ricerca libera")
+
         with c2:
             temp_field = st.selectbox("🌡️ Campo temperatura", col_temp) if col_temp else None
             temp_range = None
@@ -259,6 +301,7 @@ def main_app():
                 if s.notna().sum() > 0:
                     min_t, max_t = float(s.min()), float(s.max())
                     temp_range = st.slider("Intervallo temperatura", min_value=min_t, max_value=max_t, value=(min_t, max_t))
+
             hum_field = st.selectbox("💧 Campo umidità", col_hum) if col_hum else None
             hum_range = None
             if hum_field:
@@ -266,7 +309,9 @@ def main_app():
                 if s.notna().sum() > 0:
                     min_h, max_h = float(s.min()), float(s.max())
                     hum_range = st.slider("Intervallo umidità", min_value=min_h, max_value=max_h, value=(min_h, max_h))
+
             solo_cons = st.checkbox("📝 Solo righe con considerazioni", value=False) if col_cons else False
+
         apply_btn = st.form_submit_button("⚡ Applica filtri")
 
     # --- Applica filtri ---
@@ -284,109 +329,26 @@ def main_app():
             df_filtrato = df_filtrato[(s >= hum_range[0]) & (s <= hum_range[1])]
         if solo_cons and col_cons:
             df_filtrato = df_filtrato[df_filtrato[col_cons].notna()]
+
         if search_all:
             mask = pd.Series(False, index=df_filtrato.index)
             for c in df_filtrato.columns:
                 mask |= df_filtrato[c].astype(str).str.contains(search_all, case=False, na=False)
             df_filtrato = df_filtrato[mask]
+
         if col_data and not df_filtrato.empty:
             giorni_trovati = pd.to_datetime(df_filtrato[col_data], errors="coerce").dt.date.unique()
             df_filtrato = df[df[col_data].isin(giorni_trovati)]
 
     st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
     st.dataframe(df_filtrato, width="stretch", height=500)
-    st.download_button("📥 Scarica risultati (CSV)", df_filtrato.to_csv(index=False).encode("utf-8"),
-                       "risultati.csv", "text/csv")
 
-    # -------------------------
-    # Controlla abbonamento (KeyAuth Seller API)
-    # -------------------------
-    st.markdown("### 🔎 Controlla abbonamento KeyAuth (admin)")
-    st.markdown("Puoi controllare lo stato e la scadenza delle subscription di un utente. La Seller Key è necessaria per leggere questi dati.")
-    with st.form("check_sub_form"):
-        c1, c2 = st.columns([2,1])
-        with c1:
-            check_username = st.text_input("👤 Username da controllare")
-        with c2:
-            # preferisci avere la seller key in st.secrets['KEYAUTH_SELLER_KEY'] oppure inserirla qui (temporanea)
-            default_seller = st.session_state.get('seller_key') or st.secrets.get("KEYAUTH_SELLER_KEY") if hasattr(st, "secrets") else None
-            seller_input = st.text_input("🔑 Seller Key (admin)", type="password", value=default_seller if default_seller else "")
-            remember = st.checkbox("Ricorda seller key per questa sessione", value=bool(st.session_state.get('seller_key')))
-        check_btn = st.form_submit_button("📡 Controlla abbonamento")
-
-    if check_btn:
-        if not check_username:
-            st.error("Inserisci lo username da controllare.")
-        elif not seller_input:
-            st.error("Inserisci la seller key (puoi salvarla in st.secrets o usarla qui).")
-        else:
-            if remember:
-                st.session_state['seller_key'] = seller_input
-            st.info(f"Richiedo dati per `{check_username}` ...")
-            ok, res = get_user_userdata_from_seller(seller_input, check_username)
-            if not ok:
-                st.error(f"Errore: {res}")
-            else:
-                data = res
-                # Informazioni generali
-                st.markdown("#### 🔰 Dati utente")
-                cols = {
-                    "Username": data.get("username"),
-                    "HWID": data.get("hwid"),
-                    "IP": data.get("ip"),
-                    "Banned": data.get("banned"),
-                    "Created": data.get("createdate"),
-                    "Last login": data.get("lastlogin"),
-                    "Cooldown": data.get("cooldown")
-                }
-                md = "\n".join([f"- **{k}**: {v}" for k, v in cols.items()])
-                st.markdown(md)
-
-                # Subscriptions
-                subs = data.get("subscriptions", []) or []
-                if subs:
-                    st.markdown("#### 📦 Subscriptions")
-                    rows = []
-                    now_ts = int(datetime.utcnow().timestamp())
-                    for s_item in subs:
-                        # s_item potrebbe essere dict con keys: subscription, expiry, timeleft, active ecc.
-                        name = s_item.get("subscription", s_item.get("name", "—"))
-                        expiry_raw = s_item.get("expiry", s_item.get("expires", None))
-                        expiry_fmt = _format_expiry(expiry_raw)
-                        timeleft = s_item.get("timeleft", None)
-                        # calcolo stato se possibile
-                        active = None
-                        try:
-                            if timeleft is not None:
-                                active = (int(timeleft) > 0)
-                            elif expiry_raw:
-                                # prova a interpretare expiry come ts
-                                e_int = int(expiry_raw)
-                                active = (e_int > now_ts)
-                        except Exception:
-                            active = None
-                        rows.append({
-                            "subscription": name,
-                            "expiry": expiry_fmt,
-                            "timeleft": timeleft if timeleft is not None else "-",
-                            "active": "✅" if active else ("❌" if active is False else "-")
-                        })
-                    st.table(pd.DataFrame(rows))
-                else:
-                    st.info("Nessuna subscription trovata per questo utente.")
-
-                # Uservars (se presenti)
-                uservars = data.get("uservars", []) or []
-                if uservars:
-                    st.markdown("#### 🧾 User variables")
-                    try:
-                        # uservars spesso è lista di dict {"var":"name","data":"value"} oppure [{"name":.., "value":..}]
-                        df_vars = pd.DataFrame(uservars)
-                        st.dataframe(df_vars)
-                    except Exception:
-                        st.write(uservars)
-
-                st.success("🔍 Controllo completato.")
+    st.download_button(
+        "📥 Scarica risultati (CSV)",
+        df_filtrato.to_csv(index=False).encode("utf-8"),
+        "risultati.csv",
+        "text/csv"
+    )
 
 # -------------------------
 # Flow
