@@ -216,6 +216,7 @@ def main_app():
             solo_cons = st.checkbox("📝 Solo righe con considerazioni", value=False) if col_cons else False
         apply_btn = st.form_submit_button("⚡ Applica filtri")
 
+# --- Applica filtri ---
     df_filtrato = df.copy()
     if apply_btn:
         if luogo_sel and col_luogo:
@@ -230,32 +231,25 @@ def main_app():
             df_filtrato = df_filtrato[(s >= hum_range[0]) & (s <= hum_range[1])]
         if solo_cons and col_cons:
             df_filtrato = df_filtrato[df_filtrato[col_cons].notna()]
-        if col_data and not df_filtrato.empty:
-            giorni_trovati = df_filtrato[col_data].dropna().unique().tolist()
-            df_filtrato = df[df[col_data].isin(giorni_trovati)]
 
-    # --- 🔎 Ricerca globale (unica barra finale)
-    st.markdown("### 🔎 Ricerca globale")
-    query_global = st.text_input("Cerca in tutte le colonne", placeholder="Parola, numero, giorno, luogo...")
-    if query_global:
+    # --- 🔎 Barra di ricerca globale ---
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    global_search = st.text_input("🔎 Cerca in tutto il file")
+    if global_search:
         mask = pd.Series(False, index=df_filtrato.index)
         for c in df_filtrato.columns:
-            mask |= df_filtrato[c].astype(str).str.contains(query_global, case=False, na=False)
+            mask |= df_filtrato[c].astype(str).str.contains(global_search, case=False, na=False)
         df_filtrato = df_filtrato[mask]
 
-   st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
-    st.dataframe(df_filtrato, width="stretch")
+    # --- Risultati ---
+    st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
+    st.dataframe(df_filtrato, use_container_width=True, height=500)
 
     st.download_button(
         label="📥 Scarica risultati (CSV)",
         data=df_filtrato.to_csv(index=False).encode("utf-8"),
         file_name="risultati.csv",
         mime="text/csv"
-    )
-
-    st.markdown("</div>", unsafe_allow_html=True)
-        "risultati.csv",
-        "text/csv",
     )
 
     st.markdown("</div>", unsafe_allow_html=True)
@@ -267,5 +261,6 @@ if not st.session_state["auth"]:
     show_login()
 else:
     main_app()
+
 
 
