@@ -163,7 +163,7 @@ def call_groq_chat(messages, max_tokens=400):
 
 def chat_ai_box(df_context):
     st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("### 🤖 Consulenza AI (Groq)", unsafe_allow_html=True)
+    st.markdown("### 🤖 Consulenza AI (BETA - Still in Dev.)", unsafe_allow_html=True)
     st.markdown("<div class='small-muted'>Fai domande sui dati filtrati. L'AI userà i dati come contesto.</div>", unsafe_allow_html=True)
 
     for role, text in st.session_state["chat_history"]:
@@ -353,3 +353,4 @@ if not st.session_state["auth"]:
     show_login()
 else:
     main_app()
+
