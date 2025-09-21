@@ -1,4 +1,4 @@
-# prova.py - versione completa con chat AI DeepSeek integrata
+# prova.py - versione completa con chat AI Groq integrata
 import streamlit as st
 import pandas as pd
 import time
@@ -60,7 +60,6 @@ def get_keyauth_app():
             kwargs["hash_to_check"] = chk
         return api(**kwargs)
     except Exception as e:
-        # non far crashare l'app se KeyAuth non è raggiungibile: mostra errore ed esci dal login
         st.error("Errore inizializzazione KeyAuth: " + str(e))
         return None
 
@@ -78,7 +77,7 @@ if "login_error" not in st.session_state:
 if "show_add_form" not in st.session_state:
     st.session_state["show_add_form"] = False
 if "chat_history" not in st.session_state:
-    st.session_state["chat_history"] = []  # list of tuples (role, message)
+    st.session_state["chat_history"] = []
 
 # -------------------------
 # Data loader / saver
@@ -131,27 +130,24 @@ def show_login():
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # blocca qui l'esecuzione per i non autenticati
     if not st.session_state["auth"]:
         st.stop()
 
 # -------------------------
-# Chat AI helper (DeepSeek)
+# Chat AI helper (Groq)
 # -------------------------
-def call_deepseek_chat(messages, max_tokens=400):
+def call_groq_chat(messages, max_tokens=400):
     """
     messages: list of dicts like {"role":"user"/"system"/"assistant","content": "..."}
-    returns assistant text or raises
     """
     try:
-        api_key = st.secrets["DEEPSEEK_API_KEY"]
+        api_key = st.secrets["GROQ_API_KEY"]
     except Exception:
-        # If secret missing, raise a clear error
-        raise RuntimeError("DeepSeek API key non trovata in st.secrets['DEEPSEEK_API_KEY'].")
+        raise RuntimeError("Groq API key non trovata in st.secrets['GROQ_API_KEY'].")
 
-    url = "https://api.deepseek.com/chat/completions"
+    url = "https://api.groq.com/openai/v1/chat/completions"
     payload = {
-        "model": "deepseek-chat",
+        "model": "llama3-8b-8192",
         "messages": messages,
         "max_tokens": max_tokens
     }
@@ -159,32 +155,25 @@ def call_deepseek_chat(messages, max_tokens=400):
     r = requests.post(url, json=payload, headers=headers, timeout=30)
     if r.status_code == 200:
         j = r.json()
-        # compatibilità con schema Chat completions-like
         if "choices" in j and len(j["choices"]) > 0 and "message" in j["choices"][0]:
             return j["choices"][0]["message"]["content"]
-        # fallback
         return j.get("message") or str(j)
     else:
-        raise RuntimeError(f"Errore DeepSeek ({r.status_code}): {r.text}")
+        raise RuntimeError(f"Errore Groq ({r.status_code}): {r.text}")
 
 def chat_ai_box(df_context):
-    """
-    df_context: DataFrame to use as context (usually df_filtrato or df)
-    This function renders a chat UI and appends to st.session_state['chat_history'].
-    """
     st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("### 🤖 Consulenza AI (DeepSeek)", unsafe_allow_html=True)
+    st.markdown("### 🤖 Consulenza AI (Groq)", unsafe_allow_html=True)
     st.markdown("<div class='small-muted'>Fai domande sui dati filtrati. L'AI userà i dati come contesto.</div>", unsafe_allow_html=True)
 
-    # show chat history
     for role, text in st.session_state["chat_history"]:
         if role == "user":
-            st.markdown(f"<div class='user-bubble'>👤 {st.session_state.get('user','Tu')}: {st.markdown(text, unsafe_allow_html=False) if False else text}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='user-bubble'>👤 {st.session_state.get('user','Tu')}: {text}</div>", unsafe_allow_html=True)
         else:
-            st.markdown(f"<div class='ai-bubble'>🤖 AI: {st.markdown(text, unsafe_allow_html=False) if False else text}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='ai-bubble'>🤖 AI: {text}</div>", unsafe_allow_html=True)
 
     with st.form("chat_form", clear_on_submit=False):
-        user_q = st.text_area("💬 Scrivi la tua domanda (es: 'Sono a Bionaz, ci sono -2°C, quale struttura consigli dai test passati?')", key="chat_input")
+        user_q = st.text_area("💬 Scrivi la tua domanda", key="chat_input")
         send = st.form_submit_button("Invia alla AI")
         reset = st.form_submit_button("🔄 Reset chat")
 
@@ -193,39 +182,29 @@ def chat_ai_box(df_context):
         st.experimental_rerun()
 
     if send and user_q and user_q.strip():
-        # append user's message
         st.session_state["chat_history"].append(("user", user_q))
 
-        # Build messages for DeepSeek: system prompt + history + dataset excerpt
         system_prompt = (
             "Sei un assistente per supportare decisioni tecniche su sci/strutture. "
             "Rispondi in modo conciso, pratico e con raccomandazioni basate sui dati storici forniti. "
             "Se possibile, dai 2-3 suggerimenti concreti e ordina per priorità."
         )
 
-        # create dataset summary to pass as context (limit rows to avoid huge payload)
         try:
             df_excerpt = df_context.head(20).to_csv(index=False)
         except Exception:
             df_excerpt = "Impossibile serializzare il dataset."
 
-        # Compose messages: system, excerpt, and conversation
         messages = [{"role": "system", "content": system_prompt}]
-        # attach dataset excerpt as system context
         messages.append({"role": "system", "content": f"Ecco un estratto dei dati (CSV):\n{df_excerpt}"})
 
-        # include conversation history (user-only and assistant responses)
         for role, text in st.session_state["chat_history"]:
-            # DeepSeek/OpenAI style expects 'user' or 'assistant'
             messages.append({"role": "user" if role == "user" else "assistant", "content": text})
 
-        # call DeepSeek
         try:
             with st.spinner("L'AI sta ragionando..."):
-                ai_text = call_deepseek_chat(messages, max_tokens=500)
-            # append assistant reply
+                ai_text = call_groq_chat(messages, max_tokens=500)
             st.session_state["chat_history"].append(("assistant", ai_text))
-            # show the new assistant reply immediately
             st.experimental_rerun()
         except Exception as e:
             st.error(f"Errore AI: {e}")
@@ -320,7 +299,6 @@ def main_app():
             solo_cons = st.checkbox("📝 Solo righe con considerazioni", value=False) if col_cons else False
         apply_btn = st.form_submit_button("⚡ Applica filtri")
 
-    # --- Applica filtri ---
     df_filtrato = df.copy()
     if apply_btn:
         if luogo_sel and col_luogo:
@@ -335,16 +313,12 @@ def main_app():
             df_filtrato = df_filtrato[(s >= hum_range[0]) & (s <= hum_range[1])]
         if solo_cons and col_cons:
             df_filtrato = df_filtrato[df_filtrato[col_cons].notna()]
-
-        # Espansione per includere tutte le righe dei giorni trovati (se DATA esiste)
         if col_data and not df_filtrato.empty:
-            # Assicuriamoci che la colonna DATA sia in formato date
             df[col_data] = pd.to_datetime(df[col_data], errors="coerce").dt.date
             df_filtrato[col_data] = pd.to_datetime(df_filtrato[col_data], errors="coerce").dt.date
             giorni_trovati = df_filtrato[col_data].dropna().unique().tolist()
             df_filtrato = df[df[col_data].isin(giorni_trovati)]
 
-    # --- 🔎 Barra di ricerca globale ---
     st.markdown("### 🔎 Ricerca globale")
     global_search = st.text_input("🔎 Cerca in tutto il file", key="global_search")
     if global_search:
@@ -353,7 +327,6 @@ def main_app():
             mask |= df_filtrato[c].astype(str).str.contains(global_search, case=False, na=False)
         df_filtrato = df_filtrato[mask]
 
-    # --- Risultati ---
     st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
     st.dataframe(df_filtrato, width="stretch", height=500)
 
@@ -366,7 +339,6 @@ def main_app():
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- Chat AI (usa df_filtrato come contesto se non vuoto, altrimenti df completo) ---
     context_df = df_filtrato if (df_filtrato is not None and len(df_filtrato) > 0) else df
     chat_ai_box(context_df)
 
@@ -377,5 +349,3 @@ if not st.session_state["auth"]:
     show_login()
 else:
     main_app()
-
-
