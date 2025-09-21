@@ -243,14 +243,16 @@ def main_app():
             mask |= df_filtrato[c].astype(str).str.contains(query_global, case=False, na=False)
         df_filtrato = df_filtrato[mask]
 
-    st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
+   st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
     st.dataframe(df_filtrato, width="stretch")
+
     st.download_button(
-        "📥 Scarica risultati (CSV)",
-        df_filtrato.to_csv(index=False).encode("utf-8"),
-        "risultati.csv",
-        "text/csv",
+        label="📥 Scarica risultati (CSV)",
+        data=df_filtrato.to_csv(index=False).encode("utf-8"),
+        file_name="risultati.csv",
+        mime="text/csv"
     )
+
     st.markdown("</div>", unsafe_allow_html=True)
         "risultati.csv",
         "text/csv",
@@ -265,4 +267,5 @@ if not st.session_state["auth"]:
     show_login()
 else:
     main_app()
+
 
