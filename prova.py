@@ -147,7 +147,7 @@ def call_groq_chat(messages, max_tokens=400):
 
     url = "https://api.groq.com/openai/v1/chat/completions"
     payload = {
-        "model": "llama3-8b-8192",
+        "model": "llama-3.1-8b-instant",
         "messages": messages,
         "max_tokens": max_tokens
     }
@@ -197,7 +197,6 @@ def chat_ai_box(df_context):
 
         messages = [{"role": "system", "content": system_prompt}]
         messages.append({"role": "system", "content": f"Ecco un estratto dei dati (CSV):\n{df_excerpt}"})
-
         for role, text in st.session_state["chat_history"]:
             messages.append({"role": "user" if role == "user" else "assistant", "content": text})
 
@@ -299,6 +298,7 @@ def main_app():
             solo_cons = st.checkbox("📝 Solo righe con considerazioni", value=False) if col_cons else False
         apply_btn = st.form_submit_button("⚡ Applica filtri")
 
+    # --- Applica filtri ---
     df_filtrato = df.copy()
     if apply_btn:
         if luogo_sel and col_luogo:
@@ -313,12 +313,14 @@ def main_app():
             df_filtrato = df_filtrato[(s >= hum_range[0]) & (s <= hum_range[1])]
         if solo_cons and col_cons:
             df_filtrato = df_filtrato[df_filtrato[col_cons].notna()]
+
         if col_data and not df_filtrato.empty:
             df[col_data] = pd.to_datetime(df[col_data], errors="coerce").dt.date
             df_filtrato[col_data] = pd.to_datetime(df_filtrato[col_data], errors="coerce").dt.date
             giorni_trovati = df_filtrato[col_data].dropna().unique().tolist()
             df_filtrato = df[df[col_data].isin(giorni_trovati)]
 
+    # --- 🔎 Barra di ricerca globale ---
     st.markdown("### 🔎 Ricerca globale")
     global_search = st.text_input("🔎 Cerca in tutto il file", key="global_search")
     if global_search:
@@ -327,6 +329,7 @@ def main_app():
             mask |= df_filtrato[c].astype(str).str.contains(global_search, case=False, na=False)
         df_filtrato = df_filtrato[mask]
 
+    # --- Risultati ---
     st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
     st.dataframe(df_filtrato, width="stretch", height=500)
 
@@ -339,6 +342,7 @@ def main_app():
 
     st.markdown("</div>", unsafe_allow_html=True)
 
+    # --- Chat AI ---
     context_df = df_filtrato if (df_filtrato is not None and len(df_filtrato) > 0) else df
     chat_ai_box(context_df)
 
