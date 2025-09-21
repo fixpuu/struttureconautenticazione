@@ -270,6 +270,16 @@ def main_app():
             giorni_trovati = pd.to_datetime(df_filtrato[col_data], errors="coerce").dt.date.unique()
             df_filtrato = df[df[col_data].isin(giorni_trovati)]
 
+# --- 🔎 Ricerca globale ---
+st.markdown("### 🔎 Ricerca globale")
+query_global = st.text_input("Cerca in tutte le colonne", placeholder="Scrivi qui qualsiasi parola o numero...")
+
+if query_global:
+    mask_global = pd.Series(False, index=df_filtrato.index)
+    for col in df_filtrato.columns:
+        mask_global |= df_filtrato[col].astype(str).str.contains(query_global, case=False, na=False)
+    df_filtrato = df_filtrato[mask_global]
+    
     st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
     st.dataframe(df_filtrato, use_container_width=True, height=500)
 
@@ -288,3 +298,4 @@ if not st.session_state['auth']:
     show_login()
 else:
     main_app()
+
