@@ -143,7 +143,7 @@ def call_deepseek_chat(messages, max_tokens=400):
     messages: list of dicts like {"role":"user"/"system"/"assistant","content": "..."}
     returns assistant text or raises
     """
-    api_key = None
+    api_key = sk-cdb3c137c0e3472ea920f29bbe2363c8
     try:
         api_key = st.secrets["DEEPSEEK_API_KEY"]
     except Exception:
@@ -378,3 +378,4 @@ if not st.session_state["auth"]:
     show_login()
 else:
     main_app()
+
