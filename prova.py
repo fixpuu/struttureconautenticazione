@@ -1,3 +1,4 @@
+# prova.py - versione corretta con ricerca globale posizionata correttamente
 import streamlit as st
 import pandas as pd
 import time
@@ -6,54 +7,29 @@ import hashlib
 from keyauth import api
 
 # -------------------------
-# Page config + CSS
+# Config pagina + CSS
 # -------------------------
 st.set_page_config(page_title="🔍 STRUTTURE", page_icon="🏔️", layout="wide")
-
-st.markdown("""
-<style>
-/* Background full-screen con immagine e overlay scuro */
-.stApp {
-    background: url("https://images.unsplash.com/photo-1608889175123-8a33f57e4dc0?ixlib=rb-4.0.3&auto=format&fit=crop&w=1950&q=80") no-repeat center center fixed;
-    background-size: cover;
-}
-.stApp::before {
-    content: "";
-    position: fixed;
-    top:0; left:0;
-    width:100%; height:100%;
-    background: rgba(0,0,0,0.6); /* overlay scuro */
-    z-index: -1;
-}
-
-/* Titoli */
-h1,h2,h3 {
-    color:#ffd580;
-    font-weight:600;
-}
-
-/* Card effetto vetro */
-.card {
-    background: rgba(15, 17, 26, 0.75);
-    backdrop-filter: blur(8px);
-    padding:20px;
-    border-radius:15px;
-    box-shadow:0 6px 25px rgba(0,0,0,0.6);
-    margin-bottom:20px;
-}
-
-/* Testo secondario */
-.small-muted {color:#ccc; font-size:13px;}
-
-/* Bottoni */
-.stButton>button {
-    background: linear-gradient(90deg,#ff7b00,#ffb347);
-    color:white; font-weight:600; border-radius:10px; padding:8px 20px;
-    border:none; transition:0.3s;
-}
-.stButton>button:hover {transform:scale(1.05);}
-</style>
-""", unsafe_allow_html=True)
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background: url("https://images.unsplash.com/photo-1608889175123-8a33f57e4dc0?ixlib=rb-4.0.3&auto=format&fit=crop&w=1950&q=80") no-repeat center center fixed;
+        background-size: cover;
+    }
+    .stApp::before { content: ""; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.6); z-index: -1; }
+    h1,h2,h3 { color:#ffd580; font-weight:600; }
+    .card { background: rgba(15, 17, 26, 0.75); backdrop-filter: blur(8px); padding:20px; border-radius:15px; box-shadow:0 6px 25px rgba(0,0,0,0.6); margin-bottom:20px; }
+    .small-muted { color:#ccc; font-size:13px; }
+    .stButton>button {
+        background: linear-gradient(90deg,#ff7b00,#ffb347);
+        color:white; font-weight:600; border-radius:10px; padding:8px 20px; border:none; transition:0.15s;
+    }
+    .stButton>button:hover { transform:scale(1.03); }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # -------------------------
 # KeyAuth init
@@ -73,7 +49,7 @@ def get_keyauth_app():
             name="strutture",
             ownerid="l9G6gNHYVu",
             secret="8f89f06f3cec7207ad7ac9e1786057396d0bb6c587ba8f6fc548ba4f244c78b1",
-            version="1.0"
+            version="1.0",
         )
         chk = safe_checksum()
         if chk:
@@ -86,31 +62,25 @@ def get_keyauth_app():
 keyauth_app = get_keyauth_app()
 
 # -------------------------
-# Session state
+# Session state init
 # -------------------------
-if 'auth' not in st.session_state:
-    st.session_state['auth'] = False
-if 'user' not in st.session_state:
-    st.session_state['user'] = None
-if 'login_error' not in st.session_state:
-    st.session_state['login_error'] = None
-if 'show_add_form' not in st.session_state:
-    st.session_state['show_add_form'] = False
+if "auth" not in st.session_state:
+    st.session_state["auth"] = False
+if "user" not in st.session_state:
+    st.session_state["user"] = None
+if "login_error" not in st.session_state:
+    st.session_state["login_error"] = None
+if "show_add_form" not in st.session_state:
+    st.session_state["show_add_form"] = False
 
 # -------------------------
-# Data loader
+# Data loader / saver
 # -------------------------
 @st.cache_data
 def load_data(path="STRUTTURE_cleaned.csv"):
     try:
         df = pd.read_csv(path)
-
-        # Rimuovi colonne indesiderate
-        drop_cols = ["luogo_clean", "tipo_neve_clean", "hum_inizio_sospetto", "hum_fine_sospetto"]
-        df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
-
-        if "DATA" in df.columns:
-            df["DATA"] = pd.to_datetime(df["DATA"], errors="coerce").dt.date
+        # (Non rimuoviamo colonne qui: gestire eventuali drop più avanti)
         return df
     except Exception as e:
         st.error(f"Errore lettura CSV '{path}': {e}")
@@ -130,70 +100,57 @@ def save_data(df, path="STRUTTURE_cleaned.csv"):
 def show_login():
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown("## 🔐 Login", unsafe_allow_html=True)
+
     with st.form("login_form"):
-        c1, c2 = st.columns([2,2])
+        c1, c2 = st.columns([2, 2])
         username = c1.text_input("👤 Username")
         password = c2.text_input("🔑 Password", type="password")
         submitted = st.form_submit_button("Accedi")
+
         if submitted:
             if keyauth_app is None:
-                st.session_state['login_error'] = "KeyAuth non inizializzato."
+                st.session_state["login_error"] = "KeyAuth non inizializzato."
                 return
             try:
+                # usa KeyAuth per login (la libreria che usi deve esporre .login)
                 keyauth_app.login(username, password)
-                st.session_state['auth'] = True
-                st.session_state['user'] = username
+                st.session_state["auth"] = True
+                st.session_state["user"] = username
                 st.success("✅ Login effettuato!")
-                time.sleep(0.5)
+                # il form submit fa automaticamente il rerun; non serve chiamare st.rerun()
+                time.sleep(0.4)
             except Exception as e:
-                st.session_state['login_error'] = str(e)
-    if st.session_state.get('login_error'):
-        st.error("❌ " + st.session_state['login_error'])
+                st.session_state["login_error"] = str(e)
+
+    if st.session_state.get("login_error"):
+        st.error("❌ " + st.session_state["login_error"])
+
     st.markdown("</div>", unsafe_allow_html=True)
-    if not st.session_state['auth']:
+
+    # blocca qui l'esecuzione per i non autenticati
+    if not st.session_state["auth"]:
         st.stop()
 
 # -------------------------
-# Main App
+# Main app
 # -------------------------
 def main_app():
     st.markdown(f"<h1 style='text-align:center;'>🏔️ STRUTTURE - Dashboard</h1>", unsafe_allow_html=True)
-    st.markdown(f"<div class='small-muted' style='text-align:center;'>Benvenuto, <b>{st.session_state.get('user','utente')}</b></div>", unsafe_allow_html=True)
+    st.markdown(
+        f"<div class='small-muted' style='text-align:center;'>Benvenuto, <b>{st.session_state.get('user','utente')}</b></div>",
+        unsafe_allow_html=True,
+    )
 
+    # carica dati
     df = load_data()
     if df is None:
         st.stop()
 
-    # --- Pulsante per mostrare form ---
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("### ✨ Gestione dati")
-    if not st.session_state['show_add_form']:
-        if st.button("➕ Aggiungi una nuova riga", key="show_add", use_container_width=True):
-            st.session_state['show_add_form'] = True
-            st.rerun()
-    else:
-        st.markdown("## ➕ Inserisci una nuova riga")
-        with st.form("add_row_form"):
-            new_data = {}
-            cols = df.columns.tolist()
-            for col in cols:
-                new_data[col] = st.text_input(f"{col}", key=f"new_{col}")
-            submitted_new = st.form_submit_button("📌 Aggiungi riga")
-            if submitted_new:
-                new_row = {col: (new_data[col] if new_data[col] != "" else None) for col in cols}
-                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-                if save_data(df):
-                    st.success("✅ Riga aggiunta con successo!")
-                    st.cache_data.clear()  # aggiorna cache
-                    time.sleep(0.5)
-                    st.session_state['show_add_form'] = False
-                    st.rerun()
-        if st.button("❌ Annulla", key="hide_add", use_container_width=True):
-            st.session_state['show_add_form'] = False
-            st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+    # rimuovi colonne temporanee se esistono (come prima)
+    drop_cols = ["luogo_clean", "tipo_neve_clean", "hum_inizio_sospetto", "hum_fine_sospetto"]
+    df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
 
-    # --- Mapping dinamico ---
+    # helper per trovare colonne in modo case-insensitive
     def find_col(possibles):
         for p in possibles:
             for c in df.columns:
@@ -201,13 +158,55 @@ def main_app():
                     return c
         return None
 
-    col_data  = find_col(["data"])
-    col_luogo = find_col(["luogo","localita"])
-    col_neve  = find_col(["tipo_neve","neve"])
-    col_cons  = find_col(["considerazione","note"])
-    col_temp  = [c for c in df.columns if "temp" in c.lower()]
-    col_hum   = [c for c in df.columns if "hum" in c.lower() or "umid" in c.lower()]
+    # trova colonne utili
+    col_data = find_col(["data", "DATA", "Data"])
+    col_luogo = find_col(["luogo", "localita", "località", "place"])
+    col_neve = find_col(["tipo_neve", "neve"])
+    col_cons = find_col(["considerazione", "note", "CONSIDERAZIONE"])
+    col_temp = [c for c in df.columns if "temp" in c.lower()]
+    col_hum = [c for c in df.columns if "hum" in c.lower() or "umid" in c.lower()]
 
+    # normalizza la colonna data (se presente) a tipo date
+    if col_data:
+        df[col_data] = pd.to_datetime(df[col_data], errors="coerce").dt.date
+
+    # --- Sezione gestione dati (aggiungi riga) ---
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.markdown("### ✨ Gestione dati")
+
+    # mostra/mostra form tramite session_state; il click del bottone causa il rerun automatico
+    if not st.session_state["show_add_form"]:
+        if st.button("➕ Aggiungi una nuova riga", key="show_add"):
+            st.session_state["show_add_form"] = True
+    else:
+        st.markdown("## ➕ Inserisci una nuova riga")
+        with st.form("add_row_form"):
+            new_data = {}
+            cols = df.columns.tolist()
+            # Colloca il form in due colonne per compattezza se molte colonne
+            n = len(cols)
+            for col in cols:
+                new_data[col] = st.text_input(f"{col}", key=f"new_{col}")
+            submitted_new = st.form_submit_button("📌 Aggiungi riga")
+            if submitted_new:
+                # crea riga coerente con colonne
+                new_row = {col: (new_data[col] if new_data[col] != "" else None) for col in cols}
+                df2 = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+                if save_data(df2):
+                    st.success("✅ Riga aggiunta con successo! (file aggiornato)")
+                    # pulisci cache e torna alla vista principale
+                    try:
+                        st.cache_data.clear()
+                    except Exception:
+                        pass
+                    st.session_state["show_add_form"] = False
+                else:
+                    st.error("Errore durante il salvataggio.")
+        if st.button("❌ Annulla", key="hide_add"):
+            st.session_state["show_add_form"] = False
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # --- Filtri ---
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown("### 🎯 Filtri")
 
@@ -221,7 +220,7 @@ def main_app():
                 luogo_sel = st.multiselect("📍 Seleziona luogo", luoghi)
 
             tipo_neve = st.text_input("❄️ Tipo di neve (keyword)") if col_neve else None
-            search_all = st.text_input("🔎 Ricerca libera")
+            search_all = st.text_input("🔎 Ricerca libera (applicato prima dell'espansione)")
 
         with c2:
             temp_field = st.selectbox("🌡️ Campo temperatura", col_temp) if col_temp else None
@@ -244,9 +243,11 @@ def main_app():
 
         apply_btn = st.form_submit_button("⚡ Applica filtri")
 
-    # --- Applica filtri ---
+    # prepara df_filtrato
     df_filtrato = df.copy()
+
     if apply_btn:
+        # filtri riga-per-riga
         if luogo_sel and col_luogo:
             df_filtrato = df_filtrato[df_filtrato[col_luogo].isin(luogo_sel)]
         if tipo_neve and col_neve:
@@ -260,42 +261,49 @@ def main_app():
         if solo_cons and col_cons:
             df_filtrato = df_filtrato[df_filtrato[col_cons].notna()]
 
+        # ricerca sui risultati parziali (prima dell'espansione)
         if search_all:
             mask = pd.Series(False, index=df_filtrato.index)
             for c in df_filtrato.columns:
                 mask |= df_filtrato[c].astype(str).str.contains(search_all, case=False, na=False)
             df_filtrato = df_filtrato[mask]
 
+        # --- Espansione per includere TUTTE le righe dei giorni trovati (se esiste col_data)
         if col_data and not df_filtrato.empty:
-            giorni_trovati = pd.to_datetime(df_filtrato[col_data], errors="coerce").dt.date.unique()
+            # assicuriamoci che la colonna sia in formato date su entrambi i df
+            df[col_data] = pd.to_datetime(df[col_data], errors="coerce").dt.date
+            df_filtrato[col_data] = pd.to_datetime(df_filtrato[col_data], errors="coerce").dt.date
+            giorni_trovati = df_filtrato[col_data].dropna().unique().tolist()
+            # ricomponi mostrando tutte le righe dei giorni trovati
             df_filtrato = df[df[col_data].isin(giorni_trovati)]
 
-# --- 🔎 Ricerca globale ---
-st.markdown("### 🔎 Ricerca globale")
-query_global = st.text_input("Cerca in tutte le colonne", placeholder="Scrivi qui qualsiasi parola o numero...")
+    # --- 🔎 Ricerca globale (posizionata CORRETTAMENTE solo qui, prima della tabella)
+    st.markdown("### 🔎 Ricerca globale")
+    query_global = st.text_input("Cerca tutto (tutte le colonne)", placeholder="Parola, numero, giorno, luogo...", key="global_search")
 
-if query_global:
-    mask_global = pd.Series(False, index=df_filtrato.index)
-    for col in df_filtrato.columns:
-        mask_global |= df_filtrato[col].astype(str).str.contains(query_global, case=False, na=False)
-    df_filtrato = df_filtrato[mask_global]
-    
+    if query_global:
+        mask_global = pd.Series(False, index=df_filtrato.index)
+        for col in df_filtrato.columns:
+            mask_global |= df_filtrato[col].astype(str).str.contains(query_global, case=False, na=False)
+        df_filtrato = df_filtrato[mask_global]
+
+    # --- Mostra risultati (tabella e download) ---
     st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
-    st.dataframe(df_filtrato, use_container_width=True, height=500)
-
+    # usa width='stretch' (deprecazione risolta)
+    st.dataframe(df_filtrato, width="stretch")
     st.download_button(
         "📥 Scarica risultati (CSV)",
         df_filtrato.to_csv(index=False).encode("utf-8"),
         "risultati.csv",
-        "text/csv"
+        "text/csv",
     )
+
     st.markdown("</div>", unsafe_allow_html=True)
 
 # -------------------------
 # Flow
 # -------------------------
-if not st.session_state['auth']:
+if not st.session_state["auth"]:
     show_login()
 else:
     main_app()
-
