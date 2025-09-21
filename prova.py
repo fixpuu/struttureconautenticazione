@@ -141,16 +141,13 @@ def main_app():
         unsafe_allow_html=True,
     )
 
-    # carica dati
     df = load_data()
     if df is None:
         st.stop()
 
-    # rimuovi colonne temporanee se esistono (come prima)
     drop_cols = ["luogo_clean", "tipo_neve_clean", "hum_inizio_sospetto", "hum_fine_sospetto"]
     df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
 
-    # helper per trovare colonne in modo case-insensitive
     def find_col(possibles):
         for p in possibles:
             for c in df.columns:
@@ -158,50 +155,34 @@ def main_app():
                     return c
         return None
 
-    # trova colonne utili
-    col_data = find_col(["data", "DATA", "Data"])
-    col_luogo = find_col(["luogo", "localita", "località", "place"])
-    col_neve = find_col(["tipo_neve", "neve"])
-    col_cons = find_col(["considerazione", "note", "CONSIDERAZIONE"])
+    col_data = find_col(["data"])
+    col_luogo = find_col(["luogo","localita"])
+    col_neve = find_col(["tipo_neve","neve"])
+    col_cons = find_col(["considerazione","note"])
     col_temp = [c for c in df.columns if "temp" in c.lower()]
     col_hum = [c for c in df.columns if "hum" in c.lower() or "umid" in c.lower()]
 
-    # normalizza la colonna data (se presente) a tipo date
     if col_data:
         df[col_data] = pd.to_datetime(df[col_data], errors="coerce").dt.date
 
-    # --- Sezione gestione dati (aggiungi riga) ---
+    # --- Gestione dati ---
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown("### ✨ Gestione dati")
-
-    # mostra/mostra form tramite session_state; il click del bottone causa il rerun automatico
     if not st.session_state["show_add_form"]:
         if st.button("➕ Aggiungi una nuova riga", key="show_add"):
             st.session_state["show_add_form"] = True
     else:
         st.markdown("## ➕ Inserisci una nuova riga")
         with st.form("add_row_form"):
-            new_data = {}
-            cols = df.columns.tolist()
-            # Colloca il form in due colonne per compattezza se molte colonne
-            n = len(cols)
-            for col in cols:
-                new_data[col] = st.text_input(f"{col}", key=f"new_{col}")
+            new_data = {col: st.text_input(col, key=f"new_{col}") for col in df.columns}
             submitted_new = st.form_submit_button("📌 Aggiungi riga")
             if submitted_new:
-                # crea riga coerente con colonne
-                new_row = {col: (new_data[col] if new_data[col] != "" else None) for col in cols}
+                new_row = {col: (new_data[col] if new_data[col] else None) for col in df.columns}
                 df2 = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
                 if save_data(df2):
-                    st.success("✅ Riga aggiunta con successo! (file aggiornato)")
-                    # pulisci cache e torna alla vista principale
-                    try:
-                        st.cache_data.clear()
-                    except Exception:
-                        pass
+                    st.success("✅ Riga aggiunta con successo!")
+                    st.cache_data.clear()
                     st.session_state["show_add_form"] = False
-                else:
-                    st.error("Errore durante il salvataggio.")
         if st.button("❌ Annulla", key="hide_add"):
             st.session_state["show_add_form"] = False
     st.markdown("</div>", unsafe_allow_html=True)
@@ -209,45 +190,34 @@ def main_app():
     # --- Filtri ---
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown("### 🎯 Filtri")
-
     with st.form("filters_form"):
         c1, c2 = st.columns(2)
-
         with c1:
-            luogo_sel = None
-            if col_luogo:
-                luoghi = sorted(df[col_luogo].dropna().unique())
-                luogo_sel = st.multiselect("📍 Seleziona luogo", luoghi)
-
-            tipo_neve = st.text_input("❄️ Tipo di neve (keyword)") if col_neve else None
-            search_all = st.text_input("🔎 Ricerca libera (applicato prima dell'espansione)")
-
+            luogo_sel = st.multiselect("📍 Seleziona luogo",
+                                       sorted(df[col_luogo].dropna().unique())) if col_luogo else None
+            tipo_neve = st.text_input("❄️ Tipo di neve") if col_neve else None
         with c2:
             temp_field = st.selectbox("🌡️ Campo temperatura", col_temp) if col_temp else None
             temp_range = None
             if temp_field:
                 s = pd.to_numeric(df[temp_field], errors="coerce")
                 if s.notna().sum() > 0:
-                    min_t, max_t = float(s.min()), float(s.max())
-                    temp_range = st.slider("Intervallo temperatura", min_value=min_t, max_value=max_t, value=(min_t, max_t))
-
+                    temp_range = st.slider("Intervallo temperatura",
+                                           float(s.min()), float(s.max()),
+                                           (float(s.min()), float(s.max())))
             hum_field = st.selectbox("💧 Campo umidità", col_hum) if col_hum else None
             hum_range = None
             if hum_field:
                 s = pd.to_numeric(df[hum_field], errors="coerce")
                 if s.notna().sum() > 0:
-                    min_h, max_h = float(s.min()), float(s.max())
-                    hum_range = st.slider("Intervallo umidità", min_value=min_h, max_value=max_h, value=(min_h, max_h))
-
+                    hum_range = st.slider("Intervallo umidità",
+                                           float(s.min()), float(s.max()),
+                                           (float(s.min()), float(s.max())))
             solo_cons = st.checkbox("📝 Solo righe con considerazioni", value=False) if col_cons else False
-
         apply_btn = st.form_submit_button("⚡ Applica filtri")
 
-    # prepara df_filtrato
     df_filtrato = df.copy()
-
     if apply_btn:
-        # filtri riga-per-riga
         if luogo_sel and col_luogo:
             df_filtrato = df_filtrato[df_filtrato[col_luogo].isin(luogo_sel)]
         if tipo_neve and col_neve:
@@ -260,40 +230,28 @@ def main_app():
             df_filtrato = df_filtrato[(s >= hum_range[0]) & (s <= hum_range[1])]
         if solo_cons and col_cons:
             df_filtrato = df_filtrato[df_filtrato[col_cons].notna()]
-
-        # ricerca sui risultati parziali (prima dell'espansione)
-        if search_all:
-            mask = pd.Series(False, index=df_filtrato.index)
-            for c in df_filtrato.columns:
-                mask |= df_filtrato[c].astype(str).str.contains(search_all, case=False, na=False)
-            df_filtrato = df_filtrato[mask]
-
-        # --- Espansione per includere TUTTE le righe dei giorni trovati (se esiste col_data)
         if col_data and not df_filtrato.empty:
-            # assicuriamoci che la colonna sia in formato date su entrambi i df
-            df[col_data] = pd.to_datetime(df[col_data], errors="coerce").dt.date
-            df_filtrato[col_data] = pd.to_datetime(df_filtrato[col_data], errors="coerce").dt.date
             giorni_trovati = df_filtrato[col_data].dropna().unique().tolist()
-            # ricomponi mostrando tutte le righe dei giorni trovati
             df_filtrato = df[df[col_data].isin(giorni_trovati)]
 
-    # --- 🔎 Ricerca globale (posizionata CORRETTAMENTE solo qui, prima della tabella)
+    # --- 🔎 Ricerca globale (unica barra finale)
     st.markdown("### 🔎 Ricerca globale")
-    query_global = st.text_input("Cerca tutto (tutte le colonne)", placeholder="Parola, numero, giorno, luogo...", key="global_search")
-
+    query_global = st.text_input("Cerca in tutte le colonne", placeholder="Parola, numero, giorno, luogo...")
     if query_global:
-        mask_global = pd.Series(False, index=df_filtrato.index)
-        for col in df_filtrato.columns:
-            mask_global |= df_filtrato[col].astype(str).str.contains(query_global, case=False, na=False)
-        df_filtrato = df_filtrato[mask_global]
+        mask = pd.Series(False, index=df_filtrato.index)
+        for c in df_filtrato.columns:
+            mask |= df_filtrato[c].astype(str).str.contains(query_global, case=False, na=False)
+        df_filtrato = df_filtrato[mask]
 
-    # --- Mostra risultati (tabella e download) ---
     st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
-    # usa width='stretch' (deprecazione risolta)
     st.dataframe(df_filtrato, width="stretch")
     st.download_button(
         "📥 Scarica risultati (CSV)",
         df_filtrato.to_csv(index=False).encode("utf-8"),
+        "risultati.csv",
+        "text/csv",
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
         "risultati.csv",
         "text/csv",
     )
@@ -307,3 +265,4 @@ if not st.session_state["auth"]:
     show_login()
 else:
     main_app()
+
