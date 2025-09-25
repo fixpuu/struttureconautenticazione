@@ -41,13 +41,13 @@ unsafe_allow_html=True,
 # KeyAuth init
 # -------------------------
 def safe_checksum():
-try:
-md5_hash = hashlib.md5()
-with open(sys.argv[0], "rb") as f:
-md5_hash.update(f.read())
-return md5_hash.hexdigest()
-except Exception:
-return None
+    try:
+        md5_hash = hashlib.md5()
+        with open(sys.argv[0], "rb") as f:
+            md5_hash.update(f.read())
+        return md5_hash.hexdigest()
+    except Exception:
+        return None
 
 
 def get_keyauth_app():
@@ -124,4 +124,5 @@ if not st.session_state["auth"]:
     show_login()
 else:
     main_app()
+
 
