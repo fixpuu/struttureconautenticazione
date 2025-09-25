@@ -1,4 +1,13 @@
-# prova.py - versione aggiornata con gestione errori, UI più stabile e Groq (llama-3.1-8b-instant)
+# prova.py - versione completa e corretta
+# Correzioni principali:
+# - gestione robusta KeyAuth/login senza crash
+# - keyauth_app inizializzato in st.session_state per evitare NameError
+# - logout disponibile
+# - chat AI con Groq (usa st.secrets['GROQ_API_KEY'])
+# - contesto AI migliorato (sommario + estratto CSV)
+# - reset chat funzionante
+# - meno experimental_rerun e CSS più compatibile mobile/iPad
+
 import streamlit as st
 import pandas as pd
 import time
@@ -11,8 +20,6 @@ from keyauth import api
 # Config pagina + CSS
 # -------------------------
 st.set_page_config(page_title="🔍 STRUTTURE", page_icon="🏔️", layout="wide")
-
-# CSS semplice e responsive (meno rischi su iPad)
 st.markdown(
     """
     <style>
@@ -35,8 +42,9 @@ st.markdown(
 )
 
 # -------------------------
-# KeyAuth init (robusto)
+# KeyAuth init helpers
 # -------------------------
+
 def safe_checksum():
     try:
         md5_hash = hashlib.md5()
@@ -46,8 +54,9 @@ def safe_checksum():
     except Exception:
         return None
 
-def get_keyauth_app():
-    # Carichiamo i parametri KeyAuth dai secrets se presenti, altrimenti fallback a hardcoded (ma preferibile usare secrets)
+
+def get_keyauth_app_from_secrets():
+    """Crea istanza KeyAuth usando i secrets se presenti."""
     try:
         kwargs = dict(
             name=st.secrets.get("KEYAUTH_NAME", "strutture"),
@@ -60,13 +69,13 @@ def get_keyauth_app():
             kwargs["hash_to_check"] = chk
         return api(**kwargs)
     except Exception as e:
-        # Non crashiamo l'app: ritorniamo None e memorizziamo l'errore
+        # Non lanciamo eccezioni: salviamo il messaggio in session_state
         st.session_state["keyauth_init_error"] = str(e)
         return None
 
-# init keyauth once
+# Inizializziamo keyauth_app in session_state per essere sicuri che esista prima dell'uso
 if "keyauth_app" not in st.session_state:
-    st.session_state["keyauth_app"] = get_keyauth_app()
+    st.session_state["keyauth_app"] = get_keyauth_app_from_secrets()
 
 # -------------------------
 # Session state init
@@ -80,7 +89,7 @@ if "login_error" not in st.session_state:
 if "show_add_form" not in st.session_state:
     st.session_state["show_add_form"] = False
 if "chat_history" not in st.session_state:
-    st.session_state["chat_history"] = []  # list of tuples (role, message)
+    st.session_state["chat_history"] = []
 if "last_ai_error" not in st.session_state:
     st.session_state["last_ai_error"] = None
 
@@ -93,9 +102,9 @@ def load_data(path="STRUTTURE_cleaned.csv"):
         df = pd.read_csv(path)
         return df
     except Exception as e:
-        # Mostriamo errore ma non crashiamo
         st.error(f"Errore lettura CSV '{path}': {e}")
         return None
+
 
 def save_data(df, path="STRUTTURE_cleaned.csv"):
     try:
@@ -106,53 +115,56 @@ def save_data(df, path="STRUTTURE_cleaned.csv"):
         return False
 
 # -------------------------
-# Login UI (robusta)
+# Login UI (corretta, non crasha)
 # -------------------------
+
 def show_login():
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown("## 🔐 Login", unsafe_allow_html=True)
 
+    # Mostra eventuale errore di init KeyAuth
+    if st.session_state.get("keyauth_init_error"):
+        st.warning("Attenzione: KeyAuth non è stato inizializzato correttamente: " + st.session_state["keyauth_init_error"])
+
     with st.form("login_form"):
         c1, c2 = st.columns([2, 2])
-        username = c1.text_input("👤 Username")
-        password = c2.text_input("🔑 Password", type="password")
+        username = c1.text_input("👤 Username", key="login_username")
+        password = c2.text_input("🔑 Password", type="password", key="login_password")
         submitted = st.form_submit_button("Accedi")
 
         if submitted:
+            keyauth_app = st.session_state.get("keyauth_app")
             if keyauth_app is None:
-                st.session_state["login_error"] = "KeyAuth non inizializzato."
+                st.session_state["login_error"] = "KeyAuth non inizializzato. Controlla la configurazione dei secrets."
             else:
                 try:
+                    # call KeyAuth login; questo potrebbe lanciare eccezioni, le catturiamo
                     keyauth_app.login(username, password)
                     st.session_state["auth"] = True
                     st.session_state["user"] = username
                     st.session_state["login_error"] = None
                     st.success("✅ Login effettuato!")
-                    time.sleep(0.4)
-                    st.experimental_rerun()   # 🔥 forza refresh in dashboard
+                    # non forziamo un rerun aggressivo; Streamlit aggiornerà la view
                 except Exception as e:
-                    # qui catturo l’errore di password / hwid sbagliata
+                    # Manteniamo l'app viva e mostriamo il messaggio di errore
                     st.session_state["auth"] = False
                     st.session_state["user"] = None
                     st.session_state["login_error"] = str(e)
 
     if st.session_state.get("login_error"):
-        st.error("❌ " + st.session_state["login_error"])
+        st.error("❌ " + str(st.session_state["login_error"]))
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # se login fallito → ferma qui e mostra solo il form
+    # blocchiamo la UI se non autenticati
     if not st.session_state["auth"]:
         st.stop()
 
 # -------------------------
-# Chat AI helper (Groq) con contesto migliorato
+# Chat AI helper (Groq) e utilities
 # -------------------------
+
 def call_groq_chat(messages, max_tokens=400):
-    """
-    messages: list of dicts like {"role":"user"/"system"/"assistant","content": "..."}
-    returns assistant text or raises RuntimeError
-    """
     try:
         api_key = st.secrets["GROQ_API_KEY"]
     except Exception:
@@ -162,55 +174,46 @@ def call_groq_chat(messages, max_tokens=400):
     payload = {
         "model": "llama-3.1-8b-instant",
         "messages": messages,
-        "max_tokens": max_tokens
+        "max_tokens": max_tokens,
     }
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     try:
         r = requests.post(url, json=payload, headers=headers, timeout=30)
     except requests.RequestException as e:
         raise RuntimeError(f"Errore di rete verso Groq: {e}")
+
     if r.status_code == 200:
         j = r.json()
         if "choices" in j and len(j["choices"]) > 0 and "message" in j["choices"][0]:
             return j["choices"][0]["message"]["content"]
-        # fallback: prova a trovare testo in struttura diversa
         return j.get("message") or str(j)
     else:
-        # proviamo a mostrare messaggio di errore utile
         try:
             err = r.json()
         except Exception:
             err = r.text
         raise RuntimeError(f"Errore Groq ({r.status_code}): {err}")
 
+
 def summarise_dataframe_for_ai(df):
-    """
-    Crea un summary compatto e utile per il modello:
-    - righe totali, colonne chiave trovate
-    - statistiche su campi numerici (min,max,mean)
-    - top 6 località con conteggio
-    - esempi di note/considerazioni
-    """
     try:
         parts = []
         parts.append(f"Righe totali dataset: {len(df)}")
         cols = list(df.columns)
         parts.append(f"Colonne: {', '.join(cols)}")
-        # proviamo a trovare colonne temperatura/umidità/data/luogo/considerazioni
+
         def find_col(possibles):
             for p in possibles:
                 for c in df.columns:
                     if p.lower() in c.lower():
                         return c
             return None
+
         col_data = find_col(["data"])
         col_luogo = find_col(["luogo", "localita"])
-        col_temp = [c for c in df.columns if "temp" in c.lower()]
-        col_hum = [c for c in df.columns if "hum" in c.lower() or "umid" in c.lower()]
         col_cons = find_col(["considerazione", "note", "commento"])
 
         if col_data:
-            parts.append(f"Colonna data individuata: {col_data}")
             try:
                 df[col_data] = pd.to_datetime(df[col_data], errors="coerce")
                 min_d = df[col_data].min()
@@ -226,7 +229,6 @@ def summarise_dataframe_for_ai(df):
             except Exception:
                 pass
 
-        # numeric summaries (primi 3 campi temp/hum)
         numeric_fields = []
         for c in df.columns:
             try:
@@ -245,7 +247,6 @@ def summarise_dataframe_for_ai(df):
             if examples:
                 parts.append("Esempi note/considerazioni: " + " | ".join(examples))
 
-        # aggiungiamo un breve estratto CSV (limitiamo i caratteri)
         try:
             excerpt = df.head(25).to_csv(index=False)
             if len(excerpt) > 3000:
@@ -257,6 +258,7 @@ def summarise_dataframe_for_ai(df):
         return "\n".join(parts)
     except Exception:
         return "Impossibile creare sommario del dataset."
+
 
 def chat_ai_box(df_context):
     st.markdown("<div class='card'>", unsafe_allow_html=True)
@@ -270,7 +272,6 @@ def chat_ai_box(df_context):
         else:
             st.markdown(f"<div class='ai-bubble'>🤖 AI: {text}</div>", unsafe_allow_html=True)
 
-    # form per invio
     with st.form("chat_form", clear_on_submit=False):
         user_q = st.text_area("💬 Scrivi la tua domanda (es: 'Sono a Bionaz... quale struttura consigli?')", key="chat_input", height=90)
         c1, c2 = st.columns([1,1])
@@ -279,22 +280,17 @@ def chat_ai_box(df_context):
         with c2:
             reset = st.form_submit_button("🔄 Reset chat")
 
-    # reset chat
     if reset:
         st.session_state["chat_history"] = []
         st.session_state["last_ai_error"] = None
-        # ricarichiamo UI per pulire la chat
         st.experimental_rerun()
 
-    # invio messaggio
     if send and user_q and user_q.strip():
-        # non appendiamo subito nella sessione in caso di errori di rete: costruiamo la lista temporanea
         st.session_state["last_ai_error"] = None
         try:
-            # Append user message (così l'utente vede subito il suo messaggio)
+            # Append user message so they see it immediately
             st.session_state["chat_history"].append(("user", user_q))
 
-            # costruzione contesto per il modello:
             system_prompt = (
                 "Sei un assistente specializzato in test e raccomandazioni per sci di fondo (cross-country skiing). "
                 "Rispondi in italiano in modo conciso e pratico, concentrandoti esclusivamente su sci di fondo: sci, attrezzatura, condizione della neve, raccomandazioni operative e considerazioni test. "
@@ -302,7 +298,6 @@ def chat_ai_box(df_context):
                 "Quando possibile dai 2-3 suggerimenti concreti, ordinati per priorità, e riferisciti ai dati forniti."
             )
 
-            # creiamo un sommario strutturato del dataframe e lo passiamo come context
             summary = summarise_dataframe_for_ai(df_context)
 
             messages = [
@@ -310,20 +305,15 @@ def chat_ai_box(df_context):
                 {"role": "system", "content": f"Riassunto dei dati disponibili per il contesto (non è l'intero file):\n{summary}"}
             ]
 
-            # includiamo la conversazione attuale (ultimo utente)
-            # aggiungiamo tutta la chat_history così il modello ha contesto
+            # aggiungiamo tutta la conversazione come contesto
             for role, text in st.session_state["chat_history"]:
                 messages.append({"role": "user" if role == "user" else "assistant", "content": text})
 
-            # chiamiamo il modello con spinner
             with st.spinner("L'AI sta ragionando..."):
                 ai_text = call_groq_chat(messages, max_tokens=500)
 
-            # appendiamo la risposta dell'assistente
             st.session_state["chat_history"].append(("assistant", ai_text))
-            # non facciamo experimental_rerun: la UI verrà aggiornata alla prossima interazione
         except Exception as e:
-            # non crashiamo; segnaliamo l'errore e lasciamo la chat utente presente
             st.session_state["last_ai_error"] = str(e)
             st.error("Errore AI: " + str(e))
 
@@ -332,6 +322,7 @@ def chat_ai_box(df_context):
 # -------------------------
 # Main app
 # -------------------------
+
 def main_app():
     try:
         st.markdown(f"<h1 style='text-align:center;'>🏔️ STRUTTURE - Dashboard</h1>", unsafe_allow_html=True)
@@ -340,12 +331,19 @@ def main_app():
             unsafe_allow_html=True,
         )
 
+        # Logout button
+        col_l, col_r = st.columns([9,1])
+        with col_r:
+            if st.button("Logout"):
+                st.session_state["auth"] = False
+                st.session_state["user"] = None
+                st.experimental_rerun()
+
         df = load_data()
         if df is None:
             st.info("Nessun dataset disponibile. Carica il CSV nella root come 'STRUTTURE_cleaned.csv'.")
             st.stop()
 
-        # pulizia colonne opzionali
         drop_cols = ["luogo_clean", "tipo_neve_clean", "hum_inizio_sospetto", "hum_fine_sospetto"]
         df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
 
@@ -476,12 +474,9 @@ def main_app():
 
     except Exception as e:
         # In caso di errore imprevisto nella UI principale: non crashare l'app.
-        # Torniamo al login in modo pulito e mostriamo il messaggio
         st.error("Errore interno nell'app: " + str(e))
-        # reset auth così l'utente può riprovare (es. se HWID fallisce)
         st.session_state["auth"] = False
         st.session_state["login_error"] = "Errore interno: " + str(e)
-        # forziamo un reload per tornare al login
         st.experimental_rerun()
 
 # -------------------------
@@ -491,5 +486,3 @@ if not st.session_state["auth"]:
     show_login()
 else:
     main_app()
-
-
