@@ -1,4 +1,4 @@
-# prova_fixed.py - Versione corretta con miglior gestione KeyAuth
+# prova_fixed.py - Versione corretta con gestione migliorata
 import streamlit as st
 import pandas as pd
 import time
@@ -34,13 +34,12 @@ st.markdown(
 )
 
 # -------------------------
-# KeyAuth helpers migliorati
+# Auth helpers
 # -------------------------
 
 def safe_checksum():
     """Calcola checksum del file corrente in modo sicuro."""
     try:
-        # Prova prima con __file__ se disponibile
         if hasattr(sys.modules[__name__], '__file__'):
             file_path = sys.modules[__name__].__file__
         else:
@@ -51,12 +50,12 @@ def safe_checksum():
             with open(file_path, "rb") as f:
                 md5_hash.update(f.read())
             return md5_hash.hexdigest()
-    except Exception as e:
-        st.warning(f"Non riesco a calcolare checksum: {e}")
+    except Exception:
+        pass
     return None
 
-def initialize_keyauth():
-    """Inizializza KeyAuth con gestione errori migliorata."""
+def initialize_auth():
+    """Inizializza sistema di autenticazione con gestione errori migliorata."""
     try:
         # Prova prima a leggere da secrets
         try:
@@ -64,9 +63,8 @@ def initialize_keyauth():
             ownerid = st.secrets["KEYAUTH_OWNERID"] 
             secret = st.secrets["KEYAUTH_SECRET"]
             version = st.secrets["KEYAUTH_VERSION"]
-        except KeyError as e:
-            # Fallback a valori hardcoded se secrets non disponibili
-            st.warning(f"Secret mancante: {e}. Uso valori di default.")
+        except KeyError:
+            # Fallback a valori di default se secrets non disponibili
             name = "strutture"
             ownerid = "l9G6gNHYVu"  
             secret = "8f89f06f3cec7207ad7ac9e1786057396d0bb6c587ba8f6fc548ba4f244c78b1"
@@ -77,34 +75,35 @@ def initialize_keyauth():
         
         # Se non riesco a calcolare checksum, prova senza
         if checksum:
-            keyauth_app = api(name, ownerid, secret, version, checksum)
+            auth_app = api(name, ownerid, secret, version, checksum)
         else:
-            # KeyAuth potrebbe richiedere checksum, prova con stringa vuota
-            keyauth_app = api(name, ownerid, secret, version, "")
+            auth_app = api(name, ownerid, secret, version, "")
             
-        return keyauth_app, None
+        return auth_app, None
         
     except Exception as e:
         error_msg = str(e)
         
-        # Gestisci errori comuni di KeyAuth
+        # Gestisci errori comuni senza rivelare il sistema
         if "doesn't exist" in error_msg:
-            error_msg = "Applicazione KeyAuth non trovata. Verifica i parametri di configurazione."
+            error_msg = "Servizio di autenticazione non disponibile. Verifica la configurazione."
         elif "invalidver" in error_msg:
-            error_msg = "Versione non valida. Aggiorna l'applicazione."
+            error_msg = "Versione non compatibile. Aggiorna l'applicazione."
         elif "hash" in error_msg.lower():
-            error_msg = "Errore di checksum. L'applicazione potrebbe essere stata modificata."
+            error_msg = "Errore di verifica integrità. Riprova o contatta il supporto."
         elif "timeout" in error_msg.lower():
             error_msg = "Timeout di connessione. Riprova tra qualche minuto."
+        else:
+            error_msg = "Errore di connessione al servizio di autenticazione."
         
         return None, error_msg
 
 # -------------------------
 # Session state init
 # -------------------------
-if "keyauth_app" not in st.session_state:
-    st.session_state["keyauth_app"] = None
-    st.session_state["keyauth_error"] = None
+if "auth_app" not in st.session_state:
+    st.session_state["auth_app"] = None
+    st.session_state["auth_error"] = None
 
 if "auth" not in st.session_state:
     st.session_state["auth"] = False
@@ -116,9 +115,11 @@ if "show_add_form" not in st.session_state:
     st.session_state["show_add_form"] = False
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
+if "login_attempt" not in st.session_state:
+    st.session_state["login_attempt"] = 0
 
 # -------------------------
-# Data functions (invariate)
+# Data functions
 # -------------------------
 @st.cache_data
 def load_data(path="STRUTTURE_cleaned.csv"):
@@ -141,126 +142,119 @@ def save_data(df, path="STRUTTURE_cleaned.csv"):
 # Login UI migliorato
 # -------------------------
 
+def perform_login(username, password):
+    """Esegue il login in modo sicuro senza terminare l'app."""
+    try:
+        auth_app = st.session_state["auth_app"]
+        
+        # Intercetta l'eventuale sys.exit() di keyauth
+        original_exit = sys.exit
+        exit_called = [False]
+        
+        def mock_exit(code=0):
+            exit_called[0] = True
+            raise SystemExit(code)
+        
+        sys.exit = mock_exit
+        
+        try:
+            auth_app.login(username, password)
+            # Se arriviamo qui, login riuscito
+            st.session_state["auth"] = True
+            st.session_state["user"] = username
+            st.session_state["login_error"] = None
+            return True
+        except SystemExit:
+            # Login fallito
+            st.session_state["auth"] = False
+            st.session_state["login_error"] = "Credenziali non valide o accesso negato."
+            return False
+        finally:
+            sys.exit = original_exit
+            
+    except Exception as e:
+        error_msg = str(e)
+        
+        # Interpreta errori comuni
+        if "invalid details" in error_msg.lower() or "invalid" in error_msg.lower():
+            error_msg = "Username o password non corretti."
+        elif "hwid" in error_msg.lower():
+            error_msg = "Dispositivo non riconosciuto. Contatta l'amministratore."
+        elif "banned" in error_msg.lower():
+            error_msg = "Account sospeso. Contatta l'amministratore."
+        elif "expired" in error_msg.lower():
+            error_msg = "Accesso scaduto. Contatta l'amministratore."
+        else:
+            error_msg = "Errore di autenticazione. Riprova."
+        
+        st.session_state["auth"] = False
+        st.session_state["login_error"] = error_msg
+        return False
+
 def show_login():
     st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("## 🔐 Login KeyAuth", unsafe_allow_html=True)
+    st.markdown("## 🔐 Accesso", unsafe_allow_html=True)
     
-    # Inizializza KeyAuth se non è stato fatto
-    if st.session_state["keyauth_app"] is None:
-        with st.spinner("Inizializzazione KeyAuth..."):
-            app, error = initialize_keyauth()
-            st.session_state["keyauth_app"] = app
-            st.session_state["keyauth_error"] = error
+    # Inizializza auth se non è stato fatto
+    if st.session_state["auth_app"] is None:
+        with st.spinner("Inizializzazione in corso..."):
+            app, error = initialize_auth()
+            st.session_state["auth_app"] = app
+            st.session_state["auth_error"] = error
     
     # Mostra errore di inizializzazione se presente
-    if st.session_state["keyauth_error"]:
-        st.error(f"❌ Errore KeyAuth: {st.session_state['keyauth_error']}")
+    if st.session_state["auth_error"]:
+        st.error(f"❌ {st.session_state['auth_error']}")
         
         # Bottone per ritentare inizializzazione
-        if st.button("🔄 Riprova inizializzazione"):
-            st.session_state["keyauth_app"] = None
-            st.session_state["keyauth_error"] = None
+        if st.button("🔄 Riprova connessione"):
+            st.session_state["auth_app"] = None
+            st.session_state["auth_error"] = None
             st.rerun()
         
         st.markdown("</div>", unsafe_allow_html=True)
         st.stop()
     
-    # Form di login
-    with st.form("login_form"):
-        st.markdown("### Inserisci le tue credenziali:")
-        
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            username = st.text_input("👤 Username", key="login_username")
-        with col2:
-            password = st.text_input("🔑 Password", type="password", key="login_password")
-        
-        # Opzioni avanzate
-        with st.expander("🔧 Opzioni avanzate (opzionale)"):
-            custom_hwid = st.text_input("🖥️ HWID personalizzato (lascia vuoto per auto)", 
-                                      help="Solo se hai problemi con l'HWID automatico")
-        
-        col_login, col_reg = st.columns([1, 1])
-        with col_login:
-            login_clicked = st.form_submit_button("🔐 Accedi", use_container_width=True)
-        with col_reg:
-            register_clicked = st.form_submit_button("📝 Registrati", use_container_width=True)
-
-        # Gestione login
-        if login_clicked and username and password:
-            try:
-                with st.spinner("Autenticazione in corso..."):
-                    keyauth_app = st.session_state["keyauth_app"]
-                    
-                    # Usa HWID personalizzato se fornito
-                    if custom_hwid.strip():
-                        keyauth_app.login(username, password, custom_hwid.strip())
-                    else:
-                        keyauth_app.login(username, password)
-                    
-                    # Login riuscito
-                    st.session_state["auth"] = True
-                    st.session_state["user"] = username
-                    st.session_state["login_error"] = None
-                    st.success("✅ Accesso eseguito con successo!")
-                    time.sleep(1)
-                    st.rerun()
-                    
-            except SystemExit:
-                # KeyAuth fa sys.exit() in caso di errore
-                st.session_state["auth"] = False
-                st.session_state["login_error"] = "Credenziali non valide o account non autorizzato."
-            except Exception as e:
-                st.session_state["auth"] = False
-                error_msg = str(e)
-                
-                # Interpreta errori comuni
-                if "invalid details" in error_msg.lower():
-                    error_msg = "Username o password non corretti."
-                elif "hwid" in error_msg.lower():
-                    error_msg = "Dispositivo non riconosciuto. Prova con HWID personalizzato."
-                elif "banned" in error_msg.lower():
-                    error_msg = "Account bannato. Contatta l'amministratore."
-                elif "expired" in error_msg.lower():
-                    error_msg = "Licenza scaduta."
-                
-                st.session_state["login_error"] = error_msg
-
-        # Gestione registrazione
-        if register_clicked and username and password:
-            license_key = st.text_input("🎫 Chiave di licenza:", key="reg_license")
-            if license_key:
-                try:
-                    with st.spinner("Registrazione in corso..."):
-                        keyauth_app = st.session_state["keyauth_app"]
-                        keyauth_app.register(username, password, license_key)
-                        st.success("✅ Registrazione completata! Ora puoi effettuare il login.")
-                except Exception as e:
-                    st.error(f"❌ Errore registrazione: {str(e)}")
-
+    # Form di login con gestione migliorata
+    st.markdown("### Inserisci le tue credenziali:")
+    
+    # Usa chiavi uniche per evitare problemi di stato
+    username = st.text_input("👤 Username", key=f"login_username_{st.session_state['login_attempt']}")
+    password = st.text_input("🔑 Password", type="password", key=f"login_password_{st.session_state['login_attempt']}")
+    
+    # Bottone di login sempre visibile e funzionante
+    login_clicked = st.button("🔐 Accedi", key=f"login_btn_{st.session_state['login_attempt']}", use_container_width=True)
+    
+    # Gestione login
+    if login_clicked and username and password:
+        with st.spinner("Verifica credenziali..."):
+            success = perform_login(username, password)
+            
+        if success:
+            st.success("✅ Accesso eseguito con successo!")
+            time.sleep(0.5)
+            st.rerun()
+        else:
+            # Incrementa counter per forzare rigenerazione input
+            st.session_state["login_attempt"] += 1
+            st.rerun()
+    
     # Mostra errore di login
     if st.session_state.get("login_error"):
         st.error(f"❌ {st.session_state['login_error']}")
+        st.info("💡 Verifica le credenziali e riprova.")
 
-    # Info per debug
-    with st.expander("🔍 Info debug"):
-        st.write("**Status KeyAuth:**")
-        st.write(f"- App inizializzata: {'✅' if st.session_state['keyauth_app'] else '❌'}")
-        st.write(f"- Autenticato: {'✅' if st.session_state['auth'] else '❌'}")
-        if st.session_state.get("keyauth_app"):
-            st.write("- Connessione KeyAuth: ✅")
-            
     st.markdown("</div>", unsafe_allow_html=True)
 
 # -------------------------
-# Chat AI e funzioni principali (invariate)
+# Chat AI
 # -------------------------
 
 def call_groq_chat(messages, max_tokens=400):
     try:
         api_key = st.secrets["GROQ_API_KEY"]
     except Exception:
-        raise RuntimeError("Groq API key non trovata in st.secrets['GROQ_API_KEY'].")
+        raise RuntimeError("API key AI non trovata nella configurazione.")
 
     url = "https://api.groq.com/openai/v1/chat/completions"
     payload = {
@@ -272,7 +266,7 @@ def call_groq_chat(messages, max_tokens=400):
     try:
         r = requests.post(url, json=payload, headers=headers, timeout=30)
     except requests.RequestException as e:
-        raise RuntimeError(f"Errore di rete verso Groq: {e}")
+        raise RuntimeError(f"Errore di rete verso servizio AI: {e}")
 
     if r.status_code == 200:
         j = r.json()
@@ -284,7 +278,7 @@ def call_groq_chat(messages, max_tokens=400):
             err = r.json()
         except Exception:
             err = r.text
-        raise RuntimeError(f"Errore Groq ({r.status_code}): {err}")
+        raise RuntimeError(f"Errore servizio AI ({r.status_code}): {err}")
 
 def summarise_dataframe_for_ai(df):
     try:
@@ -362,19 +356,21 @@ def chat_ai_box(df_context):
         else:
             st.markdown(f"<div class='ai-bubble'>🤖 AI: {text}</div>", unsafe_allow_html=True)
 
-    with st.form("chat_form", clear_on_submit=False):
-        user_q = st.text_area("💬 Scrivi la tua domanda (es: 'Sono a Bionaz... quale struttura consigli?')", key="chat_input", height=90)
-        c1, c2 = st.columns([1,1])
-        with c1:
-            send = st.form_submit_button("Invia alla AI")
-        with c2:
-            reset = st.form_submit_button("🔄 Reset chat")
+    # Input e bottoni separati (non in form per evitare problemi)
+    user_q = st.text_area("💬 Scrivi la tua domanda (es: 'Sono a Bionaz... quale struttura consigli?')", 
+                          key="chat_input", height=90)
+    
+    col1, col2 = st.columns([1,1])
+    with col1:
+        send_clicked = st.button("Invia alla AI", key="send_ai")
+    with col2:
+        reset_clicked = st.button("🔄 Reset chat", key="reset_chat")
 
-    if reset:
+    if reset_clicked:
         st.session_state["chat_history"] = []
         st.rerun()
 
-    if send and user_q and user_q.strip():
+    if send_clicked and user_q and user_q.strip():
         try:
             st.session_state["chat_history"].append(("user", user_q))
 
@@ -389,23 +385,25 @@ def chat_ai_box(df_context):
 
             messages = [
                 {"role": "system", "content": system_prompt},
-                {"role": "system", "content": f"Riassunto dei dati disponibili per il contesto (non è l'intero file):\n{summary}"}
+                {"role": "system", "content": f"Riassunto dei dati disponibili per il contesto:\n{summary}"}
             ]
 
             for role, text in st.session_state["chat_history"]:
                 messages.append({"role": "user" if role == "user" else "assistant", "content": text})
 
-            with st.spinner("L'AI sta ragionando..."):
+            with st.spinner("L'AI sta elaborando la risposta..."):
                 ai_text = call_groq_chat(messages, max_tokens=500)
 
             st.session_state["chat_history"].append(("assistant", ai_text))
+            st.rerun()
+            
         except Exception as e:
             st.error("Errore AI: " + str(e))
 
     st.markdown("</div>", unsafe_allow_html=True)
 
 # -------------------------
-# Main app (invariata)
+# Main app
 # -------------------------
 
 def main_app():
@@ -422,7 +420,8 @@ def main_app():
             if st.button("Logout"):
                 st.session_state["auth"] = False
                 st.session_state["user"] = None
-                st.session_state["keyauth_app"] = None  # Reset KeyAuth
+                st.session_state["auth_app"] = None
+                st.session_state["login_attempt"] = 0
                 st.rerun()
 
         df = load_data()
@@ -459,12 +458,26 @@ def main_app():
         if not st.session_state["show_add_form"]:
             if st.button("➕ Aggiungi una nuova riga", key="show_add"):
                 st.session_state["show_add_form"] = True
+                st.rerun()
         else:
             st.markdown("## ➕ Inserisci una nuova riga")
-            with st.form("add_row_form"):
-                new_data = {col: st.text_input(col, key=f"new_{col}") for col in df.columns}
-                submitted_new = st.form_submit_button("📌 Aggiungi riga")
-                if submitted_new:
+            
+            # Crea input per ogni colonna
+            new_data = {}
+            cols_per_row = 3
+            columns = list(df.columns)
+            
+            for i in range(0, len(columns), cols_per_row):
+                cols_batch = columns[i:i+cols_per_row]
+                streamlit_cols = st.columns(len(cols_batch))
+                
+                for j, col in enumerate(cols_batch):
+                    with streamlit_cols[j]:
+                        new_data[col] = st.text_input(col, key=f"new_{col}")
+            
+            col_add, col_cancel = st.columns([1, 1])
+            with col_add:
+                if st.button("📌 Aggiungi riga", key="add_row_btn"):
                     new_row = {col: (new_data[col] if new_data[col] else None) for col in df.columns}
                     df2 = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
                     if save_data(df2):
@@ -474,42 +487,47 @@ def main_app():
                         except Exception:
                             pass
                         st.session_state["show_add_form"] = False
-            if st.button("❌ Annulla", key="hide_add"):
-                st.session_state["show_add_form"] = False
+                        st.rerun()
+            with col_cancel:
+                if st.button("❌ Annulla", key="cancel_add"):
+                    st.session_state["show_add_form"] = False
+                    st.rerun()
+                    
         st.markdown("</div>", unsafe_allow_html=True)
 
         # --- Filtri ---
         st.markdown("<div class='card'>", unsafe_allow_html=True)
         st.markdown("### 🎯 Filtri")
-        with st.form("filters_form"):
-            c1, c2 = st.columns(2)
-            with c1:
-                luogo_sel = st.multiselect("📍 Seleziona luogo",
-                                           sorted(df[col_luogo].dropna().unique())) if col_luogo else None
-                tipo_neve = st.text_input("❄️ Tipo di neve") if col_neve else None
-            with c2:
-                temp_field = st.selectbox("🌡️ Campo temperatura", col_temp) if col_temp else None
-                temp_range = None
-                if temp_field:
-                    s = pd.to_numeric(df[temp_field], errors="coerce")
-                    if s.notna().sum() > 0:
-                        temp_range = st.slider("Intervallo temperatura",
-                                               float(s.min()), float(s.max()),
-                                               (float(s.min()), float(s.max())))
-                hum_field = st.selectbox("💧 Campo umidità", col_hum) if col_hum else None
-                hum_range = None
-                if hum_field:
-                    s = pd.to_numeric(df[hum_field], errors="coerce")
-                    if s.notna().sum() > 0:
-                        hum_range = st.slider("Intervallo umidità",
-                                               float(s.min()), float(s.max()),
-                                               (float(s.min()), float(s.max())))
-                solo_cons = st.checkbox("📝 Solo righe con considerazioni", value=False) if col_cons else False
-            apply_btn = st.form_submit_button("⚡ Applica filtri")
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            luogo_sel = st.multiselect("📍 Seleziona luogo",
+                                       sorted(df[col_luogo].dropna().unique())) if col_luogo else None
+            tipo_neve = st.text_input("❄️ Tipo di neve") if col_neve else None
+        with c2:
+            temp_field = st.selectbox("🌡️ Campo temperatura", col_temp) if col_temp else None
+            temp_range = None
+            if temp_field:
+                s = pd.to_numeric(df[temp_field], errors="coerce")
+                if s.notna().sum() > 0:
+                    temp_range = st.slider("Intervallo temperatura",
+                                           float(s.min()), float(s.max()),
+                                           (float(s.min()), float(s.max())))
+            hum_field = st.selectbox("💧 Campo umidità", col_hum) if col_hum else None
+            hum_range = None
+            if hum_field:
+                s = pd.to_numeric(df[hum_field], errors="coerce")
+                if s.notna().sum() > 0:
+                    hum_range = st.slider("Intervallo umidità",
+                                           float(s.min()), float(s.max()),
+                                           (float(s.min()), float(s.max())))
+            solo_cons = st.checkbox("📝 Solo righe with considerazioni", value=False) if col_cons else False
+        
+        apply_clicked = st.button("⚡ Applica filtri", key="apply_filters")
 
         # --- Applica filtri ---
         df_filtrato = df.copy()
-        if apply_btn:
+        if apply_clicked:
             if luogo_sel and col_luogo:
                 df_filtrato = df_filtrato[df_filtrato[col_luogo].isin(luogo_sel)]
             if tipo_neve and col_neve:
@@ -535,7 +553,9 @@ def main_app():
         # --- 🔎 Barra di ricerca globale ---
         st.markdown("### 🔎 Ricerca globale")
         global_search = st.text_input("🔎 Cerca in tutto il file", key="global_search")
-        if global_search:
+        search_clicked = st.button("🔍 Cerca", key="search_btn")
+        
+        if search_clicked and global_search:
             mask = pd.Series(False, index=df_filtrato.index)
             for c in df_filtrato.columns:
                 mask |= df_filtrato[c].astype(str).str.contains(global_search, case=False, na=False)
@@ -543,13 +563,14 @@ def main_app():
 
         # --- Risultati ---
         st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
-        st.dataframe(df_filtrato, width="stretch", height=500)
+        st.dataframe(df_filtrato, use_container_width=True, height=500)
 
         st.download_button(
             label="📥 Scarica risultati (CSV)",
             data=df_filtrato.to_csv(index=False).encode("utf-8"),
             file_name="risultati.csv",
-            mime="text/csv"
+            mime="text/csv",
+            key="download_btn"
         )
 
         st.markdown("</div>", unsafe_allow_html=True)
