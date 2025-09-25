@@ -1,19 +1,11 @@
-# prova.py - versione completa e corretta
-# Correzioni principali:
-# - gestione robusta KeyAuth/login senza crash
-# - keyauth_app inizializzato in st.session_state per evitare NameError
-# - logout disponibile
-# - chat AI con Groq (usa st.secrets['GROQ_API_KEY'])
-# - contesto AI migliorato (sommario + estratto CSV)
-# - reset chat funzionante
-# - meno experimental_rerun e CSS più compatibile mobile/iPad
-
+# prova_fixed.py - Versione corretta con miglior gestione KeyAuth
 import streamlit as st
 import pandas as pd
 import time
 import sys
 import hashlib
 import requests
+import os
 from keyauth import api
 
 # -------------------------
@@ -42,44 +34,78 @@ st.markdown(
 )
 
 # -------------------------
-# KeyAuth init helpers
+# KeyAuth helpers migliorati
 # -------------------------
 
 def safe_checksum():
+    """Calcola checksum del file corrente in modo sicuro."""
     try:
-        md5_hash = hashlib.md5()
-        with open(sys.argv[0], "rb") as f:
-            md5_hash.update(f.read())
-        return md5_hash.hexdigest()
-    except Exception:
-        return None
-
-
-def get_keyauth_app_from_secrets():
-    """Crea istanza KeyAuth usando i secrets se presenti."""
-    try:
-        kwargs = dict(
-            name=st.secrets.get("KEYAUTH_NAME", "strutture"),
-            ownerid=st.secrets.get("KEYAUTH_OWNERID", "l9G6gNHYVu"),
-            secret=st.secrets.get("KEYAUTH_SECRET", "8f89f06f3cec7207ad7ac9e1786057396d0bb6c587ba8f6fc548ba4f244c78b1"),
-            version=st.secrets.get("KEYAUTH_VERSION", "1.0"),
-        )
-        chk = safe_checksum()
-        if chk:
-            kwargs["hash_to_check"] = chk
-        return api(**kwargs)
+        # Prova prima con __file__ se disponibile
+        if hasattr(sys.modules[__name__], '__file__'):
+            file_path = sys.modules[__name__].__file__
+        else:
+            file_path = sys.argv[0]
+        
+        if os.path.exists(file_path):
+            md5_hash = hashlib.md5()
+            with open(file_path, "rb") as f:
+                md5_hash.update(f.read())
+            return md5_hash.hexdigest()
     except Exception as e:
-        # Non lanciamo eccezioni: salviamo il messaggio in session_state
-        st.session_state["keyauth_init_error"] = str(e)
-        return None
+        st.warning(f"Non riesco a calcolare checksum: {e}")
+    return None
 
-# Inizializziamo keyauth_app in session_state per essere sicuri che esista prima dell'uso
-if "keyauth_app" not in st.session_state:
-    st.session_state["keyauth_app"] = get_keyauth_app_from_secrets()
+def initialize_keyauth():
+    """Inizializza KeyAuth con gestione errori migliorata."""
+    try:
+        # Prova prima a leggere da secrets
+        try:
+            name = st.secrets["KEYAUTH_NAME"]
+            ownerid = st.secrets["KEYAUTH_OWNERID"] 
+            secret = st.secrets["KEYAUTH_SECRET"]
+            version = st.secrets["KEYAUTH_VERSION"]
+        except KeyError as e:
+            # Fallback a valori hardcoded se secrets non disponibili
+            st.warning(f"Secret mancante: {e}. Uso valori di default.")
+            name = "strutture"
+            ownerid = "l9G6gNHYVu"  
+            secret = "8f89f06f3cec7207ad7ac9e1786057396d0bb6c587ba8f6fc548ba4f244c78b1"
+            version = "1.0"
+
+        # Calcola checksum in modo sicuro
+        checksum = safe_checksum()
+        
+        # Se non riesco a calcolare checksum, prova senza
+        if checksum:
+            keyauth_app = api(name, ownerid, secret, version, checksum)
+        else:
+            # KeyAuth potrebbe richiedere checksum, prova con stringa vuota
+            keyauth_app = api(name, ownerid, secret, version, "")
+            
+        return keyauth_app, None
+        
+    except Exception as e:
+        error_msg = str(e)
+        
+        # Gestisci errori comuni di KeyAuth
+        if "doesn't exist" in error_msg:
+            error_msg = "Applicazione KeyAuth non trovata. Verifica i parametri di configurazione."
+        elif "invalidver" in error_msg:
+            error_msg = "Versione non valida. Aggiorna l'applicazione."
+        elif "hash" in error_msg.lower():
+            error_msg = "Errore di checksum. L'applicazione potrebbe essere stata modificata."
+        elif "timeout" in error_msg.lower():
+            error_msg = "Timeout di connessione. Riprova tra qualche minuto."
+        
+        return None, error_msg
 
 # -------------------------
 # Session state init
 # -------------------------
+if "keyauth_app" not in st.session_state:
+    st.session_state["keyauth_app"] = None
+    st.session_state["keyauth_error"] = None
+
 if "auth" not in st.session_state:
     st.session_state["auth"] = False
 if "user" not in st.session_state:
@@ -90,11 +116,9 @@ if "show_add_form" not in st.session_state:
     st.session_state["show_add_form"] = False
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
-if "last_ai_error" not in st.session_state:
-    st.session_state["last_ai_error"] = None
 
 # -------------------------
-# Data loader / saver
+# Data functions (invariate)
 # -------------------------
 @st.cache_data
 def load_data(path="STRUTTURE_cleaned.csv"):
@@ -105,7 +129,6 @@ def load_data(path="STRUTTURE_cleaned.csv"):
         st.error(f"Errore lettura CSV '{path}': {e}")
         return None
 
-
 def save_data(df, path="STRUTTURE_cleaned.csv"):
     try:
         df.to_csv(path, index=False)
@@ -115,53 +138,122 @@ def save_data(df, path="STRUTTURE_cleaned.csv"):
         return False
 
 # -------------------------
-# Login UI (corretta, non crasha)
+# Login UI migliorato
 # -------------------------
 
 def show_login():
     st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("## 🔐 Login", unsafe_allow_html=True)
-
-    # Mostra eventuale errore di init KeyAuth
-    if st.session_state.get("keyauth_init_error"):
-        st.warning("Attenzione: KeyAuth non è stato inizializzato correttamente: " + st.session_state["keyauth_init_error"])
-
+    st.markdown("## 🔐 Login KeyAuth", unsafe_allow_html=True)
+    
+    # Inizializza KeyAuth se non è stato fatto
+    if st.session_state["keyauth_app"] is None:
+        with st.spinner("Inizializzazione KeyAuth..."):
+            app, error = initialize_keyauth()
+            st.session_state["keyauth_app"] = app
+            st.session_state["keyauth_error"] = error
+    
+    # Mostra errore di inizializzazione se presente
+    if st.session_state["keyauth_error"]:
+        st.error(f"❌ Errore KeyAuth: {st.session_state['keyauth_error']}")
+        
+        # Bottone per ritentare inizializzazione
+        if st.button("🔄 Riprova inizializzazione"):
+            st.session_state["keyauth_app"] = None
+            st.session_state["keyauth_error"] = None
+            st.rerun()
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.stop()
+    
+    # Form di login
     with st.form("login_form"):
-        c1, c2 = st.columns([2, 2])
-        username = c1.text_input("👤 Username", key="login_username")
-        password = c2.text_input("🔑 Password", type="password", key="login_password")
-        submitted = st.form_submit_button("Accedi")
+        st.markdown("### Inserisci le tue credenziali:")
+        
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            username = st.text_input("👤 Username", key="login_username")
+        with col2:
+            password = st.text_input("🔑 Password", type="password", key="login_password")
+        
+        # Opzioni avanzate
+        with st.expander("🔧 Opzioni avanzate (opzionale)"):
+            custom_hwid = st.text_input("🖥️ HWID personalizzato (lascia vuoto per auto)", 
+                                      help="Solo se hai problemi con l'HWID automatico")
+        
+        col_login, col_reg = st.columns([1, 1])
+        with col_login:
+            login_clicked = st.form_submit_button("🔐 Accedi", use_container_width=True)
+        with col_reg:
+            register_clicked = st.form_submit_button("📝 Registrati", use_container_width=True)
 
-        if submitted:
-            keyauth_app = st.session_state.get("keyauth_app")
-            if keyauth_app is None:
-                st.session_state["login_error"] = "KeyAuth non inizializzato. Controlla la configurazione dei secrets."
-            else:
-                try:
-                    # call KeyAuth login; questo potrebbe lanciare eccezioni, le catturiamo
-                    keyauth_app.login(username, password)
+        # Gestione login
+        if login_clicked and username and password:
+            try:
+                with st.spinner("Autenticazione in corso..."):
+                    keyauth_app = st.session_state["keyauth_app"]
+                    
+                    # Usa HWID personalizzato se fornito
+                    if custom_hwid.strip():
+                        keyauth_app.login(username, password, custom_hwid.strip())
+                    else:
+                        keyauth_app.login(username, password)
+                    
+                    # Login riuscito
                     st.session_state["auth"] = True
                     st.session_state["user"] = username
                     st.session_state["login_error"] = None
-                    st.success("✅ Login effettuato!")
-                    # non forziamo un rerun aggressivo; Streamlit aggiornerà la view
+                    st.success("✅ Accesso eseguito con successo!")
+                    time.sleep(1)
+                    st.rerun()
+                    
+            except SystemExit:
+                # KeyAuth fa sys.exit() in caso di errore
+                st.session_state["auth"] = False
+                st.session_state["login_error"] = "Credenziali non valide o account non autorizzato."
+            except Exception as e:
+                st.session_state["auth"] = False
+                error_msg = str(e)
+                
+                # Interpreta errori comuni
+                if "invalid details" in error_msg.lower():
+                    error_msg = "Username o password non corretti."
+                elif "hwid" in error_msg.lower():
+                    error_msg = "Dispositivo non riconosciuto. Prova con HWID personalizzato."
+                elif "banned" in error_msg.lower():
+                    error_msg = "Account bannato. Contatta l'amministratore."
+                elif "expired" in error_msg.lower():
+                    error_msg = "Licenza scaduta."
+                
+                st.session_state["login_error"] = error_msg
+
+        # Gestione registrazione
+        if register_clicked and username and password:
+            license_key = st.text_input("🎫 Chiave di licenza:", key="reg_license")
+            if license_key:
+                try:
+                    with st.spinner("Registrazione in corso..."):
+                        keyauth_app = st.session_state["keyauth_app"]
+                        keyauth_app.register(username, password, license_key)
+                        st.success("✅ Registrazione completata! Ora puoi effettuare il login.")
                 except Exception as e:
-                    # Manteniamo l'app viva e mostriamo il messaggio di errore
-                    st.session_state["auth"] = False
-                    st.session_state["user"] = None
-                    st.session_state["login_error"] = str(e)
+                    st.error(f"❌ Errore registrazione: {str(e)}")
 
+    # Mostra errore di login
     if st.session_state.get("login_error"):
-        st.error("❌ " + str(st.session_state["login_error"]))
+        st.error(f"❌ {st.session_state['login_error']}")
 
+    # Info per debug
+    with st.expander("🔍 Info debug"):
+        st.write("**Status KeyAuth:**")
+        st.write(f"- App inizializzata: {'✅' if st.session_state['keyauth_app'] else '❌'}")
+        st.write(f"- Autenticato: {'✅' if st.session_state['auth'] else '❌'}")
+        if st.session_state.get("keyauth_app"):
+            st.write("- Connessione KeyAuth: ✅")
+            
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # blocchiamo la UI se non autenticati
-    if not st.session_state["auth"]:
-        st.stop()
-
 # -------------------------
-# Chat AI helper (Groq) e utilities
+# Chat AI e funzioni principali (invariate)
 # -------------------------
 
 def call_groq_chat(messages, max_tokens=400):
@@ -193,7 +285,6 @@ def call_groq_chat(messages, max_tokens=400):
         except Exception:
             err = r.text
         raise RuntimeError(f"Errore Groq ({r.status_code}): {err}")
-
 
 def summarise_dataframe_for_ai(df):
     try:
@@ -259,7 +350,6 @@ def summarise_dataframe_for_ai(df):
     except Exception:
         return "Impossibile creare sommario del dataset."
 
-
 def chat_ai_box(df_context):
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown("### 🤖 Consulenza AI (BETA)", unsafe_allow_html=True)
@@ -282,13 +372,10 @@ def chat_ai_box(df_context):
 
     if reset:
         st.session_state["chat_history"] = []
-        st.session_state["last_ai_error"] = None
-        st.experimental_rerun()
+        st.rerun()
 
     if send and user_q and user_q.strip():
-        st.session_state["last_ai_error"] = None
         try:
-            # Append user message so they see it immediately
             st.session_state["chat_history"].append(("user", user_q))
 
             system_prompt = (
@@ -305,7 +392,6 @@ def chat_ai_box(df_context):
                 {"role": "system", "content": f"Riassunto dei dati disponibili per il contesto (non è l'intero file):\n{summary}"}
             ]
 
-            # aggiungiamo tutta la conversazione come contesto
             for role, text in st.session_state["chat_history"]:
                 messages.append({"role": "user" if role == "user" else "assistant", "content": text})
 
@@ -314,13 +400,12 @@ def chat_ai_box(df_context):
 
             st.session_state["chat_history"].append(("assistant", ai_text))
         except Exception as e:
-            st.session_state["last_ai_error"] = str(e)
             st.error("Errore AI: " + str(e))
 
     st.markdown("</div>", unsafe_allow_html=True)
 
 # -------------------------
-# Main app
+# Main app (invariata)
 # -------------------------
 
 def main_app():
@@ -337,7 +422,8 @@ def main_app():
             if st.button("Logout"):
                 st.session_state["auth"] = False
                 st.session_state["user"] = None
-                st.experimental_rerun()
+                st.session_state["keyauth_app"] = None  # Reset KeyAuth
+                st.rerun()
 
         df = load_data()
         if df is None:
@@ -473,14 +559,11 @@ def main_app():
         chat_ai_box(context_df)
 
     except Exception as e:
-        # In caso di errore imprevisto nella UI principale: non crashare l'app.
         st.error("Errore interno nell'app: " + str(e))
         st.session_state["auth"] = False
-        st.session_state["login_error"] = "Errore interno: " + str(e)
-        st.experimental_rerun()
 
 # -------------------------
-# Flow
+# Flow principale
 # -------------------------
 if not st.session_state["auth"]:
     show_login()
