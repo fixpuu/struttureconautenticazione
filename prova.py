@@ -108,52 +108,40 @@ def save_data(df, path="STRUTTURE_cleaned.csv"):
 # -------------------------
 # Login UI (robusta)
 # -------------------------
-def show_login():
+ddef show_login():
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown("## 🔐 Login", unsafe_allow_html=True)
-    # Mostriamo eventuale errore di inizializzazione KeyAuth
-    if st.session_state.get("keyauth_init_error"):
-        st.warning("Attenzione: KeyAuth non è stato inizializzato correttamente: " + st.session_state["keyauth_init_error"])
 
     with st.form("login_form"):
         c1, c2 = st.columns([2, 2])
-        username = c1.text_input("👤 Username", key="login_username")
-        password = c2.text_input("🔑 Password", type="password", key="login_password")
+        username = c1.text_input("👤 Username")
+        password = c2.text_input("🔑 Password", type="password")
         submitted = st.form_submit_button("Accedi")
 
         if submitted:
-            # Proteggiamo la chiamata di login con un try/except molto ampio
-            try:
-                keyauth_app = st.session_state.get("keyauth_app")
-                if keyauth_app is None:
-                    # mostriamo messaggio chiaro
-                    st.session_state["login_error"] = "KeyAuth non inizializzato. Controlla la configurazione."
-                else:
-                    # la login() di KeyAuth potrebbe lanciare eccezioni; le catturiamo tutte
-                    try:
-                        keyauth_app.login(username, password)
-                        st.session_state["auth"] = True
-                        st.session_state["user"] = username
-                        st.session_state["login_error"] = None
-                        st.success("✅ Login effettuato!")
-                        # piccolo delay visivo
-                        time.sleep(0.25)
-                        # dopo login proseguiamo (non forziamo rerun)
-                    except Exception as e:
-                        # Salviamo errore senza crashare. Se l'errore contiene 'HWID' o sim lo mostriamo.
-                        st.session_state["login_error"] = str(e)
-                        st.session_state["auth"] = False
-            except Exception as e:
-                # Errore imprevisto: non crashare l'app
-                st.session_state["login_error"] = f"Errore durante il login: {e}"
-                st.session_state["auth"] = False
+            if keyauth_app is None:
+                st.session_state["login_error"] = "KeyAuth non inizializzato."
+            else:
+                try:
+                    keyauth_app.login(username, password)
+                    st.session_state["auth"] = True
+                    st.session_state["user"] = username
+                    st.session_state["login_error"] = None
+                    st.success("✅ Login effettuato!")
+                    time.sleep(0.4)
+                    st.experimental_rerun()   # 🔥 forza refresh in dashboard
+                except Exception as e:
+                    # qui catturo l’errore di password / hwid sbagliata
+                    st.session_state["auth"] = False
+                    st.session_state["user"] = None
+                    st.session_state["login_error"] = str(e)
 
     if st.session_state.get("login_error"):
-        st.error("❌ " + str(st.session_state["login_error"]))
+        st.error("❌ " + st.session_state["login_error"])
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # blocchiamo l'esecuzione della app se non autenticati (torniamo alla UI di login)
+    # se login fallito → ferma qui e mostra solo il form
     if not st.session_state["auth"]:
         st.stop()
 
@@ -503,3 +491,4 @@ if not st.session_state["auth"]:
     show_login()
 else:
     main_app()
+
