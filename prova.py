@@ -108,7 +108,7 @@ def save_data(df, path="STRUTTURE_cleaned.csv"):
 # -------------------------
 # Login UI (robusta)
 # -------------------------
-ddef show_login():
+def show_login():
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown("## 🔐 Login", unsafe_allow_html=True)
 
@@ -491,4 +491,5 @@ if not st.session_state["auth"]:
     show_login()
 else:
     main_app()
+
 
