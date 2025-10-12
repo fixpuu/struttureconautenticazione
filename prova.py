@@ -143,52 +143,65 @@ def save_data(df, path="STRUTTURE_cleaned.csv"):
 # -------------------------
 
 def perform_login(username, password):
-    """Esegue il login in modo sicuro senza terminare l'app."""
+    """Esegue il login in modo sicuro senza far terminare l'app."""
     try:
         auth_app = st.session_state["auth_app"]
-        
-        # Intercetta l'eventuale sys.exit() di keyauth
+
+        # intercetta qualsiasi tentativo di chiudere Python
         original_exit = sys.exit
+        original_os_exit = os._exit
         exit_called = [False]
-        
+
         def mock_exit(code=0):
             exit_called[0] = True
             raise SystemExit(code)
-        
+
+        def mock_os_exit(code=0):
+            exit_called[0] = True
+            raise SystemExit(code)
+
         sys.exit = mock_exit
-        
+        os._exit = mock_os_exit
+
         try:
             auth_app.login(username, password)
-            # Se arriviamo qui, login riuscito
+            # se arrivo qui, login riuscito
             st.session_state["auth"] = True
             st.session_state["user"] = username
             st.session_state["login_error"] = None
             return True
+
         except SystemExit:
-            # Login fallito
             st.session_state["auth"] = False
             st.session_state["login_error"] = "Credenziali non valide o accesso negato."
             return False
+
+        except BaseException as e:
+            # cattura eventuali eccezioni non standard che KeyAuth potrebbe lanciare
+            st.session_state["auth"] = False
+            st.session_state["login_error"] = f"Errore imprevisto di autenticazione: {e}"
+            return False
+
         finally:
+            # ripristina i comportamenti originali
             sys.exit = original_exit
-            
+            os._exit = original_os_exit
+
     except Exception as e:
-        error_msg = str(e)
-        
-        # Interpreta errori comuni
-        if "invalid details" in error_msg.lower() or "invalid" in error_msg.lower():
-            error_msg = "Username o password non corretti."
-        elif "hwid" in error_msg.lower():
-            error_msg = "Dispositivo non riconosciuto. Contatta l'amministratore."
-        elif "banned" in error_msg.lower():
-            error_msg = "Account sospeso. Contatta l'amministratore."
-        elif "expired" in error_msg.lower():
-            error_msg = "Accesso scaduto. Contatta l'amministratore."
+        msg = str(e)
+        if "invalid" in msg.lower():
+            msg = "Username o password non corretti."
+        elif "hwid" in msg.lower():
+            msg = "Dispositivo non riconosciuto. Contatta l’amministratore."
+        elif "banned" in msg.lower():
+            msg = "Account sospeso. Contatta l’amministratore."
+        elif "expired" in msg.lower():
+            msg = "Accesso scaduto. Contatta l’amministratore."
         else:
-            error_msg = "Errore di autenticazione. Riprova."
-        
+            msg = "Errore di autenticazione. Riprova."
+
         st.session_state["auth"] = False
-        st.session_state["login_error"] = error_msg
+        st.session_state["login_error"] = msg
         return False
 
 def show_login():
@@ -590,3 +603,4 @@ if not st.session_state["auth"]:
     show_login()
 else:
     main_app()
+
