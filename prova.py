@@ -54,41 +54,41 @@ st.markdown(
     }
     
     h2 {
-        color: #fff;
+        color: #1e293b;
         font-weight: 700;
         font-size: 1.8rem;
         margin: 0.5rem 0;
-        text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        text-shadow: none;
     }
     
     h3 {
-        color: #fff;
+        color: #334155;
         font-weight: 600;
         font-size: 1.3rem;
         margin: 0.3rem 0;
     }
     
     .card {
-        background: rgba(255, 255, 255, 0.95);
+        background: rgba(255, 255, 255, 0.98);
         backdrop-filter: blur(20px) saturate(180%);
         -webkit-backdrop-filter: blur(20px) saturate(180%);
         padding: 2rem;
         border-radius: 24px;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.1);
+        box-shadow: 0 20px 60px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.3);
         margin-bottom: 2rem;
-        border: 1px solid rgba(255,255,255,0.2);
+        border: 1px solid rgba(255,255,255,0.4);
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
     .card:hover {
         transform: translateY(-5px);
-        box-shadow: 0 30px 80px rgba(0,0,0,0.25);
+        box-shadow: 0 30px 80px rgba(0,0,0,0.3);
     }
     
     .small-muted {
-        color: #64748b;
+        color: #475569;
         font-size: 0.9rem;
-        font-weight: 400;
+        font-weight: 500;
     }
     
     .user-bubble {
@@ -183,17 +183,36 @@ st.markdown(
     .stTextArea > div > div > textarea,
     .stSelectbox > div > div > select {
         border-radius: 12px;
-        border: 2px solid rgba(102, 126, 234, 0.2);
+        border: 2px solid rgba(102, 126, 234, 0.3);
         padding: 0.75rem 1rem;
         transition: all 0.3s ease;
-        background: rgba(255,255,255,0.9);
+        background: rgba(255,255,255,1);
+        color: #1e293b;
+        font-weight: 500;
     }
     
     .stTextInput > div > div > input:focus,
     .stTextArea > div > div > textarea:focus,
     .stSelectbox > div > div > select:focus {
         border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+    }
+    
+    /* Label styling */
+    .stTextInput > label,
+    .stTextArea > label,
+    .stSelectbox > label,
+    .stMultiSelect > label,
+    .stSlider > label {
+        color: #1e293b !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+    }
+    
+    /* Multiselect */
+    .stMultiSelect > div > div {
+        background: rgba(255,255,255,1);
+        color: #1e293b;
     }
     
     /* Checkbox styling */
@@ -201,11 +220,21 @@ st.markdown(
         padding: 0.5rem;
     }
     
+    .stCheckbox > label {
+        color: #1e293b !important;
+        font-weight: 500 !important;
+    }
+    
     /* Dataframe styling */
     .stDataFrame {
         border-radius: 16px;
         overflow: hidden;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+    }
+    
+    /* Miglior contrasto per il testo nelle tabelle */
+    .stDataFrame td, .stDataFrame th {
+        color: #1e293b !important;
     }
     
     /* Download button */
@@ -551,11 +580,11 @@ def perform_login(username, password, remember=False):
 def show_login():
     st.markdown("<div style='text-align: center; padding: 2rem 0;'>", unsafe_allow_html=True)
     st.markdown("<h1>🏔️ STRUTTURE</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color: rgba(255,255,255,0.9); font-size: 1.2rem; font-weight: 300;'>Sistema di gestione dati sci di fondo</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color: rgba(255,255,255,0.95); font-size: 1.2rem; font-weight: 500; text-shadow: 0 2px 10px rgba(0,0,0,0.3);'>Sistema di gestione dati sci di fondo</p>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
     
     st.markdown("<div class='card' style='max-width: 500px; margin: 0 auto;'>", unsafe_allow_html=True)
-    st.markdown("<h2 style='color: #667eea; text-align: center;'>🔐 Accesso</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #667eea; text-align: center; margin-bottom: 1rem;'>🔐 Accesso</h2>", unsafe_allow_html=True)
     
     if st.session_state["auth_app"] is None:
         with st.spinner("Inizializzazione in corso..."):
