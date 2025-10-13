@@ -49,8 +49,15 @@ st.markdown(
     }
     
     @keyframes titleFloat {
-        0%, 100% { transform: translateY(0px); }
-        50% { transform: translateY(-10px); }
+        0%, 100% { transform: translateY(0px) scale(1); }
+        50% { transform: translateY(-10px) scale(1.02); }
+    }
+    
+    /* Animazione per emoji montagna */
+    @keyframes mountainBounce {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        25% { transform: translateY(-5px) rotate(-5deg); }
+        75% { transform: translateY(-3px) rotate(5deg); }
     }
     
     h2 {
@@ -593,9 +600,9 @@ def show_login():
             st.session_state["auth_error"] = error
     
     if st.session_state["auth_error"]:
-        st.error(f"❌ {st.session_state['auth_error']}")
+        st.markdown(f"<div style='background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); padding: 1rem; border-radius: 12px; color: white; font-weight: 600; text-align: center; margin: 1rem 0;'>❌ {st.session_state['auth_error']}</div>", unsafe_allow_html=True)
         
-        if st.button("🔄 Riprova connessione"):
+        if st.button("🔄 Riprova connessione", key="retry_conn"):
             st.session_state["auth_app"] = None
             st.session_state["auth_error"] = None
             st.rerun()
@@ -907,7 +914,7 @@ def main_app():
         st.markdown("""
             <div style='text-align:center; padding: 1rem 0; margin-bottom: 2rem;'>
                 <h1 style='margin-bottom: 0.5rem;'>🏔️ STRUTTURE Dashboard</h1>
-                <p style='color: rgba(255,255,255,0.95); font-size: 1.1rem; font-weight: 400; margin: 0;'>
+                <p style='color: rgba(255,255,255,0.98); font-size: 1.1rem; font-weight: 500; text-shadow: 0 2px 10px rgba(0,0,0,0.4); margin: 0;'>
                     Benvenuto, <strong style='font-weight: 700;'>{}</strong> 
                     <span style='display: inline-block; animation: wave 2s ease-in-out infinite;'>👋</span>
                 </p>
@@ -934,7 +941,7 @@ def main_app():
 
         df = load_data()
         if df is None:
-            st.info("Nessun dataset disponibile.")
+            st.markdown("<div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 1.5rem; border-radius: 12px; color: white; font-weight: 600; text-align: center;'>📊 Nessun dataset disponibile. Carica STRUTTURE_cleaned.csv</div>", unsafe_allow_html=True)
             st.stop()
 
         drop_cols = ["luogo_clean", "tipo_neve_clean", "hum_inizio_sospetto", "hum_fine_sospetto"]
