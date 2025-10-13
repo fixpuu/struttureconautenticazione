@@ -56,6 +56,19 @@ def safe_checksum():
 
 def initialize_auth():
     """Inizializza sistema di autenticazione con gestione errori migliorata."""
+    # Intercetta sys.exit PRIMA di qualsiasi chiamata a KeyAuth
+    original_exit = sys.exit
+    original_os_exit = os._exit
+    
+    def mock_exit(code=0):
+        raise SystemExit(code)
+    
+    def mock_os_exit(code=0):
+        raise SystemExit(code)
+    
+    sys.exit = mock_exit
+    os._exit = mock_os_exit
+    
     try:
         # Prova prima a leggere da secrets
         try:
@@ -78,10 +91,24 @@ def initialize_auth():
             auth_app = api(name, ownerid, secret, version, checksum)
         else:
             auth_app = api(name, ownerid, secret, version, "")
-            
+        
+        # Ripristina funzioni originali
+        sys.exit = original_exit
+        os._exit = original_os_exit
+        
         return auth_app, None
         
+    except SystemExit:
+        # Ripristina funzioni originali
+        sys.exit = original_exit
+        os._exit = original_os_exit
+        return None, "Errore inizializzazione: verifica configurazione KeyAuth (ownerid, secret, version)"
+        
     except Exception as e:
+        # Ripristina funzioni originali
+        sys.exit = original_exit
+        os._exit = original_os_exit
+        
         error_msg = str(e)
         
         # Gestisci errori comuni senza rivelare il sistema
@@ -94,7 +121,7 @@ def initialize_auth():
         elif "timeout" in error_msg.lower():
             error_msg = "Timeout di connessione. Riprova tra qualche minuto."
         else:
-            error_msg = "Errore di connessione al servizio di autenticazione."
+            error_msg = f"Errore di connessione al servizio di autenticazione: {error_msg}"
         
         return None, error_msg
 
@@ -146,22 +173,29 @@ def perform_login(username, password):
     """Esegue il login in modo sicuro senza far terminare l'app."""
     try:
         auth_app = st.session_state["auth_app"]
+        
+        if auth_app is None:
+            st.session_state["login_error"] = "Sistema di autenticazione non inizializzato"
+            return False
 
         # intercetta qualsiasi tentativo di chiudere Python
         original_exit = sys.exit
         original_os_exit = os._exit
-        exit_called = [False]
+        original_time_sleep = time.sleep
 
         def mock_exit(code=0):
-            exit_called[0] = True
             raise SystemExit(code)
 
         def mock_os_exit(code=0):
-            exit_called[0] = True
             raise SystemExit(code)
+        
+        def mock_sleep(seconds):
+            # Non bloccare l'app
+            pass
 
         sys.exit = mock_exit
         os._exit = mock_os_exit
+        time.sleep = mock_sleep
 
         try:
             auth_app.login(username, password)
@@ -172,33 +206,35 @@ def perform_login(username, password):
             return True
 
         except SystemExit:
+            # Login fallito - KeyAuth ha chiamato exit
             st.session_state["auth"] = False
-            st.session_state["login_error"] = "Credenziali non valide o accesso negato."
+            st.session_state["login_error"] = "Credenziali non valide, account scaduto o dispositivo non autorizzato."
             return False
 
         except BaseException as e:
             # cattura eventuali eccezioni non standard che KeyAuth potrebbe lanciare
             st.session_state["auth"] = False
-            st.session_state["login_error"] = f"Errore imprevisto di autenticazione: {e}"
+            st.session_state["login_error"] = f"Errore autenticazione: {str(e)}"
             return False
 
         finally:
             # ripristina i comportamenti originali
             sys.exit = original_exit
             os._exit = original_os_exit
+            time.sleep = original_time_sleep
 
     except Exception as e:
         msg = str(e)
         if "invalid" in msg.lower():
             msg = "Username o password non corretti."
         elif "hwid" in msg.lower():
-            msg = "Dispositivo non riconosciuto. Contatta l’amministratore."
+            msg = "Dispositivo non riconosciuto. Contatta l'amministratore."
         elif "banned" in msg.lower():
-            msg = "Account sospeso. Contatta l’amministratore."
+            msg = "Account sospeso. Contatta l'amministratore."
         elif "expired" in msg.lower():
-            msg = "Accesso scaduto. Contatta l’amministratore."
+            msg = "Accesso scaduto. Contatta l'amministratore."
         else:
-            msg = "Errore di autenticazione. Riprova."
+            msg = f"Errore di autenticazione: {msg}"
 
         st.session_state["auth"] = False
         st.session_state["login_error"] = msg
@@ -576,7 +612,11 @@ def main_app():
 
         # --- Risultati ---
         st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
-        st.dataframe(df_filtrato, use_container_width=True, height=500)
+        
+        # Sostituisci None con stringhe vuote prima di visualizzare
+        df_display = df_filtrato.fillna('')
+        
+        st.dataframe(df_display, use_container_width=True, height=500)
 
         st.download_button(
             label="📥 Scarica risultati (CSV)",
@@ -603,4 +643,3 @@ if not st.session_state["auth"]:
     show_login()
 else:
     main_app()
-
