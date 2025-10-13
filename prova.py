@@ -1,4 +1,4 @@
-# prova_fixed.py - Versione corretta con gestione migliorata
+# prova_fixed.py - Versione corretta con eliminazione righe e ricordami
 import streamlit as st
 import pandas as pd
 import time
@@ -6,6 +6,7 @@ import sys
 import hashlib
 import requests
 import os
+import json
 from keyauth import api
 
 # -------------------------
@@ -24,6 +25,7 @@ st.markdown(
     .small-muted { color:#d0d0d0; font-size:13px; }
     .user-bubble { background: linear-gradient(90deg,#2b70ff,#2b9bff); color:white; padding:8px 12px; border-radius:12px; display:block; margin:6px 0; max-width:88%; word-wrap:break-word; }
     .ai-bubble { background: rgba(255,255,255,0.06); color:#e6e6e6; padding:8px 12px; border-radius:12px; display:block; margin:6px 0; max-width:88%; word-wrap:break-word; }
+    .delete-row { background: rgba(255,80,80,0.15); border-left: 3px solid #ff5050; padding:10px; margin:8px 0; border-radius:8px; }
     @media (max-width: 768px) {
       .card { padding:12px; }
       h1 { font-size:20px; }
@@ -34,8 +36,42 @@ st.markdown(
 )
 
 # -------------------------
-# Auth helpers
+# Auth helpers + Remember Me
 # -------------------------
+
+REMEMBER_FILE = ".auth_remember.json"
+
+def save_remember_me(username, password):
+    """Salva credenziali in modo sicuro per ricordami"""
+    try:
+        data = {
+            "username": username,
+            "password": hashlib.sha256(password.encode()).hexdigest()[:32]  # Hash parziale
+        }
+        with open(REMEMBER_FILE, "w") as f:
+            json.dump(data, f)
+        return True
+    except Exception:
+        return False
+
+def load_remember_me():
+    """Carica credenziali salvate"""
+    try:
+        if os.path.exists(REMEMBER_FILE):
+            with open(REMEMBER_FILE, "r") as f:
+                data = json.load(f)
+            return data.get("username"), data.get("password")
+    except Exception:
+        pass
+    return None, None
+
+def clear_remember_me():
+    """Cancella credenziali salvate"""
+    try:
+        if os.path.exists(REMEMBER_FILE):
+            os.remove(REMEMBER_FILE)
+    except Exception:
+        pass
 
 def safe_checksum():
     """Calcola checksum del file corrente in modo sicuro."""
@@ -140,10 +176,14 @@ if "login_error" not in st.session_state:
     st.session_state["login_error"] = None
 if "show_add_form" not in st.session_state:
     st.session_state["show_add_form"] = False
+if "show_delete_form" not in st.session_state:
+    st.session_state["show_delete_form"] = False
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
 if "login_attempt" not in st.session_state:
     st.session_state["login_attempt"] = 0
+if "auto_login_tried" not in st.session_state:
+    st.session_state["auto_login_tried"] = False
 
 # -------------------------
 # Data functions
@@ -166,10 +206,10 @@ def save_data(df, path="STRUTTURE_cleaned.csv"):
         return False
 
 # -------------------------
-# Login UI migliorato
+# Login UI migliorato con Ricordami
 # -------------------------
 
-def perform_login(username, password):
+def perform_login(username, password, remember=False):
     """Esegue il login in modo sicuro senza far terminare l'app."""
     try:
         auth_app = st.session_state["auth_app"]
@@ -203,18 +243,27 @@ def perform_login(username, password):
             st.session_state["auth"] = True
             st.session_state["user"] = username
             st.session_state["login_error"] = None
+            
+            # Salva credenziali se ricordami è attivo
+            if remember:
+                save_remember_me(username, password)
+            else:
+                clear_remember_me()
+            
             return True
 
         except SystemExit:
             # Login fallito - KeyAuth ha chiamato exit
             st.session_state["auth"] = False
             st.session_state["login_error"] = "Credenziali non valide, account scaduto o dispositivo non autorizzato."
+            clear_remember_me()
             return False
 
         except BaseException as e:
             # cattura eventuali eccezioni non standard che KeyAuth potrebbe lanciare
             st.session_state["auth"] = False
             st.session_state["login_error"] = f"Errore autenticazione: {str(e)}"
+            clear_remember_me()
             return False
 
         finally:
@@ -238,6 +287,7 @@ def perform_login(username, password):
 
         st.session_state["auth"] = False
         st.session_state["login_error"] = msg
+        clear_remember_me()
         return False
 
 def show_login():
@@ -264,12 +314,28 @@ def show_login():
         st.markdown("</div>", unsafe_allow_html=True)
         st.stop()
     
+    # Prova auto-login se "ricordami" è attivo
+    if not st.session_state["auto_login_tried"]:
+        st.session_state["auto_login_tried"] = True
+        saved_user, saved_pass_hash = load_remember_me()
+        if saved_user and saved_pass_hash:
+            # Nota: non possiamo recuperare la password originale, quindi mostriamo solo un messaggio
+            st.info(f"🔄 Credenziali salvate trovate per: **{saved_user}**")
+            st.warning("⚠️ Inserisci la password per accedere automaticamente")
+    
     # Form di login con gestione migliorata
     st.markdown("### Inserisci le tue credenziali:")
     
+    # Carica username salvato se presente
+    saved_user, _ = load_remember_me()
+    default_username = saved_user if saved_user else ""
+    
     # Usa chiavi uniche per evitare problemi di stato
-    username = st.text_input("👤 Username", key=f"login_username_{st.session_state['login_attempt']}")
+    username = st.text_input("👤 Username", value=default_username, key=f"login_username_{st.session_state['login_attempt']}")
     password = st.text_input("🔑 Password", type="password", key=f"login_password_{st.session_state['login_attempt']}")
+    
+    # Checkbox Ricordami
+    remember_me = st.checkbox("🔐 Ricordami su questo dispositivo", value=bool(saved_user))
     
     # Bottone di login sempre visibile e funzionante
     login_clicked = st.button("🔐 Accedi", key=f"login_btn_{st.session_state['login_attempt']}", use_container_width=True)
@@ -277,7 +343,7 @@ def show_login():
     # Gestione login
     if login_clicked and username and password:
         with st.spinner("Verifica credenziali..."):
-            success = perform_login(username, password)
+            success = perform_login(username, password, remember_me)
             
         if success:
             st.success("✅ Accesso eseguito con successo!")
@@ -450,6 +516,115 @@ def chat_ai_box(df_context):
             st.error("Errore AI: " + str(e))
 
     st.markdown("</div>", unsafe_allow_html=True)
+
+# -------------------------
+# Delete rows UI
+# -------------------------
+
+def show_delete_interface(df):
+    """Interfaccia grafica per eliminare righe"""
+    st.markdown("## 🗑️ Elimina righe")
+    st.markdown("<div class='small-muted'>Visualizza e seleziona le righe da eliminare. Le ultime modificate sono mostrate per prime.</div>", unsafe_allow_html=True)
+    
+    # Trova colonna data per ordinamento
+    def find_col(possibles):
+        for p in possibles:
+            for c in df.columns:
+                if p.lower() in c.lower():
+                    return c
+        return None
+    
+    col_data = find_col(["data"])
+    
+    # Ordina per data se possibile (più recenti prima)
+    df_display = df.copy()
+    if col_data:
+        try:
+            df_display[col_data] = pd.to_datetime(df_display[col_data], errors="coerce")
+            df_display = df_display.sort_values(by=col_data, ascending=False, na_position='last')
+        except Exception:
+            pass
+    
+    # Limita a ultime 50 righe per performance
+    df_recent = df_display.head(50).reset_index(drop=True)
+    
+    # Mostra info
+    st.info(f"📊 Visualizzazione delle ultime **{len(df_recent)}** righe (su {len(df)} totali)")
+    
+    # Selezione righe da eliminare
+    if len(df_recent) > 0:
+        # Crea preview leggibile
+        preview_data = []
+        for idx in df_recent.index:
+            row = df_recent.iloc[idx]
+            
+            # Crea anteprima riga
+            preview = []
+            for col in df_recent.columns[:5]:  # Prime 5 colonne
+                val = row[col]
+                if pd.notna(val) and str(val).strip():
+                    preview.append(f"{col}: {str(val)[:30]}")
+            
+            preview_text = " | ".join(preview) if preview else f"Riga {idx}"
+            preview_data.append({
+                "index": idx,
+                "preview": preview_text,
+                "original_index": df_recent.index[idx]
+            })
+        
+        # Mostra checkbox per ogni riga
+        st.markdown("### Seleziona righe da eliminare:")
+        rows_to_delete = []
+        
+        for item in preview_data[:20]:  # Mostra max 20 alla volta
+            col1, col2 = st.columns([0.1, 0.9])
+            with col1:
+                selected = st.checkbox("", key=f"del_{item['index']}", label_visibility="collapsed")
+            with col2:
+                st.markdown(f"<div class='delete-row'>**Riga {item['index']}**: {item['preview']}</div>", unsafe_allow_html=True)
+            
+            if selected:
+                rows_to_delete.append(item['index'])
+        
+        # Bottoni azione
+        if rows_to_delete:
+            st.warning(f"⚠️ Stai per eliminare **{len(rows_to_delete)}** riga/e")
+            
+            col_del, col_cancel = st.columns([1, 1])
+            with col_del:
+                if st.button("🗑️ Conferma eliminazione", type="primary", key="confirm_delete"):
+                    try:
+                        # Elimina le righe selezionate
+                        indices_to_keep = [i for i in df.index if i not in [df_recent.index[idx] for idx in rows_to_delete]]
+                        df_new = df.loc[indices_to_keep].reset_index(drop=True)
+                        
+                        if save_data(df_new):
+                            st.success(f"✅ Eliminate {len(rows_to_delete)} riga/e con successo!")
+                            try:
+                                st.cache_data.clear()
+                            except Exception:
+                                pass
+                            time.sleep(1)
+                            st.session_state["show_delete_form"] = False
+                            st.rerun()
+                        else:
+                            st.error("❌ Errore durante il salvataggio")
+                    except Exception as e:
+                        st.error(f"❌ Errore durante l'eliminazione: {e}")
+            
+            with col_cancel:
+                if st.button("❌ Annulla", key="cancel_delete"):
+                    st.session_state["show_delete_form"] = False
+                    st.rerun()
+        else:
+            if st.button("❌ Chiudi", key="close_delete"):
+                st.session_state["show_delete_form"] = False
+                st.rerun()
+    else:
+        st.warning("Nessuna riga disponibile da eliminare")
+        if st.button("❌ Chiudi", key="close_delete_empty"):
+            st.session_state["show_delete_form"] = False
+            st.rerun()
 
 # -------------------------
 # Main app
@@ -643,3 +818,4 @@ if not st.session_state["auth"]:
     show_login()
 else:
     main_app()
+
