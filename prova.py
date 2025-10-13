@@ -16,19 +16,286 @@ st.set_page_config(page_title="🔍 STRUTTURE", page_icon="🏔️", layout="wid
 st.markdown(
     """
     <style>
-    .stApp {
-        background: linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url("https://images.unsplash.com/photo-1608889175123-8a33f57e4dc0?ixlib=rb-4.0.3&auto=format&fit=crop&w=1950&q=80") no-repeat center center fixed;
-        background-size: cover;
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+    
+    * {
+        font-family: 'Inter', sans-serif !important;
     }
-    h1,h2,h3 { color:#ffd580; font-weight:600; margin:0; padding:0.2rem 0; }
-    .card { background: rgba(15, 17, 26, 0.78); padding:16px; border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,0.5); margin-bottom:14px; }
-    .small-muted { color:#d0d0d0; font-size:13px; }
-    .user-bubble { background: linear-gradient(90deg,#2b70ff,#2b9bff); color:white; padding:8px 12px; border-radius:12px; display:block; margin:6px 0; max-width:88%; word-wrap:break-word; }
-    .ai-bubble { background: rgba(255,255,255,0.06); color:#e6e6e6; padding:8px 12px; border-radius:12px; display:block; margin:6px 0; max-width:88%; word-wrap:break-word; }
-    .delete-row { background: rgba(255,80,80,0.15); border-left: 3px solid #ff5050; padding:10px; margin:8px 0; border-radius:8px; }
+    
+    .stApp {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%);
+        background-size: 400% 400%;
+        animation: gradientShift 15s ease infinite;
+    }
+    
+    @keyframes gradientShift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    
+    h1 {
+        background: linear-gradient(135deg, #fff 0%, #ffd700 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-weight: 900;
+        font-size: 3.5rem;
+        letter-spacing: -2px;
+        margin: 0;
+        padding: 1rem 0;
+        text-shadow: 0 4px 20px rgba(255,215,0,0.3);
+        animation: titleFloat 3s ease-in-out infinite;
+    }
+    
+    @keyframes titleFloat {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+    }
+    
+    h2 {
+        color: #fff;
+        font-weight: 700;
+        font-size: 1.8rem;
+        margin: 0.5rem 0;
+        text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+    
+    h3 {
+        color: #fff;
+        font-weight: 600;
+        font-size: 1.3rem;
+        margin: 0.3rem 0;
+    }
+    
+    .card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        padding: 2rem;
+        border-radius: 24px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.1);
+        margin-bottom: 2rem;
+        border: 1px solid rgba(255,255,255,0.2);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 30px 80px rgba(0,0,0,0.25);
+    }
+    
+    .small-muted {
+        color: #64748b;
+        font-size: 0.9rem;
+        font-weight: 400;
+    }
+    
+    .user-bubble {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 20px 20px 5px 20px;
+        display: inline-block;
+        margin: 0.5rem 0;
+        max-width: 85%;
+        word-wrap: break-word;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        font-weight: 500;
+        animation: slideInRight 0.4s ease;
+    }
+    
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(50px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    .ai-bubble {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 20px 20px 20px 5px;
+        display: inline-block;
+        margin: 0.5rem 0;
+        max-width: 85%;
+        word-wrap: break-word;
+        box-shadow: 0 4px 15px rgba(240, 147, 251, 0.4);
+        font-weight: 500;
+        animation: slideInLeft 0.4s ease;
+    }
+    
+    @keyframes slideInLeft {
+        from {
+            opacity: 0;
+            transform: translateX(-50px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    .delete-row {
+        background: linear-gradient(135deg, rgba(255,80,80,0.1) 0%, rgba(255,120,120,0.15) 100%);
+        border-left: 4px solid #ff5050;
+        padding: 1rem;
+        margin: 0.8rem 0;
+        border-radius: 12px;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+    }
+    
+    .delete-row:hover {
+        background: linear-gradient(135deg, rgba(255,80,80,0.2) 0%, rgba(255,120,120,0.25) 100%);
+        transform: translateX(5px);
+    }
+    
+    /* Stili bottoni Streamlit */
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 25px rgba(102, 126, 234, 0.6);
+    }
+    
+    .stButton > button:active {
+        transform: translateY(0);
+    }
+    
+    /* Input fields */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea,
+    .stSelectbox > div > div > select {
+        border-radius: 12px;
+        border: 2px solid rgba(102, 126, 234, 0.2);
+        padding: 0.75rem 1rem;
+        transition: all 0.3s ease;
+        background: rgba(255,255,255,0.9);
+    }
+    
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus,
+    .stSelectbox > div > div > select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    /* Checkbox styling */
+    .stCheckbox {
+        padding: 0.5rem;
+    }
+    
+    /* Dataframe styling */
+    .stDataFrame {
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
+    
+    /* Download button */
+    .stDownloadButton > button {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+    }
+    
+    .stDownloadButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 25px rgba(79, 172, 254, 0.6);
+    }
+    
+    /* Slider */
+    .stSlider > div > div > div {
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    /* Success/Error messages */
+    .stSuccess {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        border-radius: 12px;
+        padding: 1rem;
+        color: white;
+        font-weight: 600;
+    }
+    
+    .stError {
+        background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+        border-radius: 12px;
+        padding: 1rem;
+        color: white;
+        font-weight: 600;
+    }
+    
+    .stWarning {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        border-radius: 12px;
+        padding: 1rem;
+        color: white;
+        font-weight: 600;
+    }
+    
+    .stInfo {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        border-radius: 12px;
+        padding: 1rem;
+        color: white;
+        font-weight: 600;
+    }
+    
+    /* Spinner */
+    .stSpinner > div {
+        border-top-color: #667eea !important;
+    }
+    
+    /* Mobile responsive */
     @media (max-width: 768px) {
-      .card { padding:12px; }
-      h1 { font-size:20px; }
+        .card { 
+            padding: 1.5rem; 
+            border-radius: 16px;
+        }
+        h1 { 
+            font-size: 2rem; 
+            letter-spacing: -1px;
+        }
+        h2 { font-size: 1.5rem; }
+        h3 { font-size: 1.2rem; }
+    }
+    
+    /* Animazione di entrata per le card */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .card {
+        animation: fadeInUp 0.6s ease;
     }
     </style>
     """,
@@ -282,8 +549,13 @@ def perform_login(username, password, remember=False):
         return False
 
 def show_login():
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("## 🔐 Accesso", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; padding: 2rem 0;'>", unsafe_allow_html=True)
+    st.markdown("<h1>🏔️ STRUTTURE</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color: rgba(255,255,255,0.9); font-size: 1.2rem; font-weight: 300;'>Sistema di gestione dati sci di fondo</p>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    st.markdown("<div class='card' style='max-width: 500px; margin: 0 auto;'>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #667eea; text-align: center;'>🔐 Accesso</h2>", unsafe_allow_html=True)
     
     if st.session_state["auth_app"] is None:
         with st.spinner("Inizializzazione in corso..."):
@@ -341,8 +613,8 @@ def show_login():
             st.rerun()
     
     if st.session_state.get("login_error"):
-        st.error(f"❌ {st.session_state['login_error']}")
-        st.info("💡 Verifica le credenziali e riprova.")
+        st.markdown(f"<div style='background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); padding: 1rem; border-radius: 12px; color: white; font-weight: 600; text-align: center; margin: 1rem 0;'>❌ {st.session_state['login_error']}</div>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #64748b;'>💡 Verifica le credenziali e riprova.</p>", unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -446,8 +718,8 @@ def summarise_dataframe_for_ai(df):
 
 def chat_ai_box(df_context):
     st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("### 🤖 Consulenza AI (BETA)", unsafe_allow_html=True)
-    st.markdown("<div class='small-muted'>Fai domande sui dati filtrati.</div>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #667eea; margin-bottom: 0.5rem;'>🤖 Consulenza AI</h2>", unsafe_allow_html=True)
+    st.markdown("<div class='small-muted' style='margin-bottom: 1.5rem;'>Fai domande sui dati filtrati e ricevi consigli intelligenti.</div>", unsafe_allow_html=True)
 
     for role, text in st.session_state["chat_history"]:
         if role == "user":
@@ -503,8 +775,8 @@ def chat_ai_box(df_context):
 
 def show_delete_interface(df):
     """Interfaccia per eliminare righe"""
-    st.markdown("## 🗑️ Elimina righe")
-    st.markdown("<div class='small-muted'>Seleziona le righe da eliminare. Le più recenti sono mostrate per prime.</div>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #ff5050; margin-bottom: 0.5rem;'>🗑️ Elimina righe</h2>", unsafe_allow_html=True)
+    st.markdown("<div class='small-muted' style='margin-bottom: 1.5rem;'>Seleziona le righe da eliminare. Le più recenti sono mostrate per prime.</div>", unsafe_allow_html=True)
     
     def find_col(possibles):
         for p in possibles:
@@ -602,15 +874,27 @@ def show_delete_interface(df):
 
 def main_app():
     try:
-        st.markdown(f"<h1 style='text-align:center;'>🏔️ STRUTTURE - Dashboard</h1>", unsafe_allow_html=True)
-        st.markdown(
-            f"<div class='small-muted' style='text-align:center;'>Benvenuto, <b>{st.session_state.get('user','utente')}</b></div>",
-            unsafe_allow_html=True,
-        )
+        # Header con animazione
+        st.markdown("""
+            <div style='text-align:center; padding: 1rem 0; margin-bottom: 2rem;'>
+                <h1 style='margin-bottom: 0.5rem;'>🏔️ STRUTTURE Dashboard</h1>
+                <p style='color: rgba(255,255,255,0.95); font-size: 1.1rem; font-weight: 400; margin: 0;'>
+                    Benvenuto, <strong style='font-weight: 700;'>{}</strong> 
+                    <span style='display: inline-block; animation: wave 2s ease-in-out infinite;'>👋</span>
+                </p>
+            </div>
+            <style>
+                @keyframes wave {{
+                    0%, 100% {{ transform: rotate(0deg); }}
+                    25% {{ transform: rotate(20deg); }}
+                    75% {{ transform: rotate(-20deg); }}
+                }}
+            </style>
+        """.format(st.session_state.get('user','utente')), unsafe_allow_html=True)
 
         col_l, col_r = st.columns([9,1])
         with col_r:
-            if st.button("Logout"):
+            if st.button("👋 Logout", key="logout_btn"):
                 st.session_state["auth"] = False
                 st.session_state["user"] = None
                 st.session_state["auth_app"] = None
@@ -649,7 +933,7 @@ def main_app():
 
         # --- Gestione dati ---
         st.markdown("<div class='card'>", unsafe_allow_html=True)
-        st.markdown("### ✨ Gestione dati")
+        st.markdown("<h2 style='color: #667eea; margin-bottom: 1.5rem;'>✨ Gestione dati</h2>", unsafe_allow_html=True)
         
         col_add_btn, col_del_btn = st.columns([1, 1])
         
@@ -668,7 +952,7 @@ def main_app():
                     st.rerun()
         
         if st.session_state["show_add_form"]:
-            st.markdown("## ➕ Inserisci nuova riga")
+            st.markdown("<h3 style='color: #667eea; margin: 1.5rem 0;'>➕ Inserisci nuova riga</h3>", unsafe_allow_html=True)
             
             new_data = {}
             cols_per_row = 3
@@ -707,7 +991,7 @@ def main_app():
 
         # --- Filtri ---
         st.markdown("<div class='card'>", unsafe_allow_html=True)
-        st.markdown("### 🎯 Filtri")
+        st.markdown("<h2 style='color: #667eea; margin-bottom: 1.5rem;'>🎯 Filtri avanzati</h2>", unsafe_allow_html=True)
         
         c1, c2 = st.columns(2)
         with c1:
@@ -761,7 +1045,7 @@ def main_app():
                     pass
 
         # --- Ricerca globale ---
-        st.markdown("### 🔎 Ricerca globale")
+        st.markdown("<h3 style='color: #667eea; margin-top: 2rem; margin-bottom: 1rem;'>🔎 Ricerca globale</h3>", unsafe_allow_html=True)
         global_search = st.text_input("🔎 Cerca in tutto il file", key="global_search")
         search_clicked = st.button("🔍 Cerca", key="search_btn")
         
@@ -772,7 +1056,7 @@ def main_app():
             df_filtrato = df_filtrato[mask]
 
         # --- Risultati ---
-        st.markdown(f"### 📊 Risultati trovati: **{len(df_filtrato)}**")
+        st.markdown(f"<h3 style='color: #667eea; margin-top: 2rem;'>📊 Risultati trovati: <span style='color: #764ba2; font-weight: 900;'>{len(df_filtrato)}</span></h3>", unsafe_allow_html=True)
         
         df_display = df_filtrato.fillna('')
         
