@@ -142,79 +142,40 @@ st.markdown(
         }
     }
     
-    /* PRIORITÀ STYLING - Super evidenti */
+    /* PRIORITÀ STYLING - Più discrete */
     .priority-1 {
-        background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%) !important;
-        color: #1a1a2e !important;
-        font-weight: 900 !important;
-        border: 3px solid #ffd700 !important;
-        box-shadow: 0 0 30px rgba(255, 215, 0, 0.8), inset 0 0 20px rgba(255, 237, 78, 0.6) !important;
-        animation: pulse-gold 2s ease-in-out infinite !important;
-    }
-    
-    @keyframes pulse-gold {
-        0%, 100% { 
-            transform: scale(1); 
-            box-shadow: 0 0 30px rgba(255, 215, 0, 0.8), inset 0 0 20px rgba(255, 237, 78, 0.6);
-        }
-        50% { 
-            transform: scale(1.02); 
-            box-shadow: 0 0 50px rgba(255, 215, 0, 1), inset 0 0 30px rgba(255, 237, 78, 0.8);
-        }
+        background: linear-gradient(135deg, rgba(255, 215, 0, 0.25) 0%, rgba(255, 237, 78, 0.25) 100%) !important;
+        border-left: 4px solid #ffd700 !important;
+        padding: 0.5rem !important;
+        margin: 0.3rem 0 !important;
     }
     
     .priority-2 {
-        background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 100%) !important;
-        color: #1a1a2e !important;
-        font-weight: 800 !important;
-        border: 2px solid #c0c0c0 !important;
-        box-shadow: 0 0 20px rgba(192, 192, 192, 0.7), inset 0 0 15px rgba(232, 232, 232, 0.5) !important;
-        animation: pulse-silver 2.5s ease-in-out infinite !important;
-    }
-    
-    @keyframes pulse-silver {
-        0%, 100% { 
-            transform: scale(1);
-            box-shadow: 0 0 20px rgba(192, 192, 192, 0.7), inset 0 0 15px rgba(232, 232, 232, 0.5);
-        }
-        50% { 
-            transform: scale(1.015);
-            box-shadow: 0 0 35px rgba(192, 192, 192, 0.9), inset 0 0 25px rgba(232, 232, 232, 0.7);
-        }
+        background: linear-gradient(135deg, rgba(192, 192, 192, 0.2) 0%, rgba(232, 232, 232, 0.2) 100%) !important;
+        border-left: 4px solid #c0c0c0 !important;
+        padding: 0.5rem !important;
+        margin: 0.3rem 0 !important;
     }
     
     .priority-3 {
-        background: linear-gradient(135deg, #cd7f32 0%, #e09142 100%) !important;
-        color: #1a1a2e !important;
-        font-weight: 700 !important;
-        border: 2px solid #cd7f32 !important;
-        box-shadow: 0 0 15px rgba(205, 127, 50, 0.6), inset 0 0 10px rgba(224, 145, 66, 0.4) !important;
-        animation: pulse-bronze 3s ease-in-out infinite !important;
-    }
-    
-    @keyframes pulse-bronze {
-        0%, 100% { 
-            transform: scale(1);
-            box-shadow: 0 0 15px rgba(205, 127, 50, 0.6), inset 0 0 10px rgba(224, 145, 66, 0.4);
-        }
-        50% { 
-            transform: scale(1.01);
-            box-shadow: 0 0 25px rgba(205, 127, 50, 0.8), inset 0 0 15px rgba(224, 145, 66, 0.6);
-        }
+        background: linear-gradient(135deg, rgba(205, 127, 50, 0.2) 0%, rgba(224, 145, 66, 0.2) 100%) !important;
+        border-left: 4px solid #cd7f32 !important;
+        padding: 0.5rem !important;
+        margin: 0.3rem 0 !important;
     }
     
     .priority-4 {
-        background: linear-gradient(135deg, rgba(0,212,255,0.15) 0%, rgba(0,255,249,0.15) 100%) !important;
-        color: #00fff9 !important;
-        font-weight: 600 !important;
-        border: 1px solid rgba(0,212,255,0.4) !important;
+        background: linear-gradient(135deg, rgba(0,212,255,0.1) 0%, rgba(0,255,249,0.1) 100%) !important;
+        border-left: 3px solid rgba(0,212,255,0.5) !important;
+        padding: 0.5rem !important;
+        margin: 0.3rem 0 !important;
     }
     
     .priority-5 {
-        background: rgba(26, 26, 46, 0.5) !important;
-        color: #94a3b8 !important;
-        font-weight: 500 !important;
-        border: 1px solid rgba(148, 163, 184, 0.3) !important;
+        background: rgba(26, 26, 46, 0.3) !important;
+        border-left: 2px solid rgba(148, 163, 184, 0.4) !important;
+        padding: 0.5rem !important;
+        margin: 0.3rem 0 !important;
     }
     
     .delete-row {
