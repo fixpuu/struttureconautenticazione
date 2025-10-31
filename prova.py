@@ -1,4 +1,4 @@
-# prova.py - Versione corretta con eliminazione righe e ricordami funzionanti
+# prova.py - Versione aggiornata con nuova colonna PRIORITA' e tema scuro
 import streamlit as st
 import pandas as pd
 import time
@@ -10,7 +10,7 @@ import json
 from keyauth import api
 
 # -------------------------
-# Config pagina + CSS
+# Config pagina + CSS DARK THEME
 # -------------------------
 st.set_page_config(page_title="🔍 STRUTTURE", page_icon="🏔️", layout="wide")
 st.markdown(
@@ -23,9 +23,9 @@ st.markdown(
     }
     
     .stApp {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%);
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 25%, #0f3460 50%, #533483 75%, #1a1a2e 100%);
         background-size: 400% 400%;
-        animation: gradientShift 15s ease infinite;
+        animation: gradientShift 20s ease infinite;
     }
     
     @keyframes gradientShift {
@@ -35,7 +35,7 @@ st.markdown(
     }
     
     h1 {
-        background: linear-gradient(135deg, #fff 0%, #ffd700 100%);
+        background: linear-gradient(135deg, #00d4ff 0%, #00fff9 50%, #ffffff 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -44,7 +44,7 @@ st.markdown(
         letter-spacing: -2px;
         margin: 0;
         padding: 1rem 0;
-        text-shadow: 0 4px 20px rgba(255,215,0,0.3);
+        text-shadow: 0 4px 20px rgba(0,212,255,0.4);
         animation: titleFloat 3s ease-in-out infinite;
     }
     
@@ -53,53 +53,47 @@ st.markdown(
         50% { transform: translateY(-10px) scale(1.02); }
     }
     
-    /* Animazione per emoji montagna */
-    @keyframes mountainBounce {
-        0%, 100% { transform: translateY(0) rotate(0deg); }
-        25% { transform: translateY(-5px) rotate(-5deg); }
-        75% { transform: translateY(-3px) rotate(5deg); }
-    }
-    
     h2 {
-        color: #1e293b;
+        color: #00d4ff;
         font-weight: 700;
         font-size: 1.8rem;
         margin: 0.5rem 0;
-        text-shadow: none;
+        text-shadow: 0 2px 10px rgba(0,212,255,0.3);
     }
     
     h3 {
-        color: #334155;
+        color: #00fff9;
         font-weight: 600;
         font-size: 1.3rem;
         margin: 0.3rem 0;
     }
     
     .card {
-        background: rgba(255, 255, 255, 0.98);
+        background: rgba(26, 26, 46, 0.85);
         backdrop-filter: blur(20px) saturate(180%);
         -webkit-backdrop-filter: blur(20px) saturate(180%);
         padding: 2rem;
         border-radius: 24px;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.3);
+        box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,212,255,0.2);
         margin-bottom: 2rem;
-        border: 1px solid rgba(255,255,255,0.4);
+        border: 1px solid rgba(0,212,255,0.3);
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
     .card:hover {
         transform: translateY(-5px);
-        box-shadow: 0 30px 80px rgba(0,0,0,0.3);
+        box-shadow: 0 30px 80px rgba(0,212,255,0.4);
+        border-color: rgba(0,212,255,0.5);
     }
     
     .small-muted {
-        color: #475569;
+        color: #94a3b8;
         font-size: 0.9rem;
         font-weight: 500;
     }
     
     .user-bubble {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #0f3460 0%, #533483 100%);
         color: white;
         padding: 1rem 1.5rem;
         border-radius: 20px 20px 5px 20px;
@@ -107,7 +101,7 @@ st.markdown(
         margin: 0.5rem 0;
         max-width: 85%;
         word-wrap: break-word;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 4px 15px rgba(83, 52, 131, 0.5);
         font-weight: 500;
         animation: slideInRight 0.4s ease;
     }
@@ -124,16 +118,16 @@ st.markdown(
     }
     
     .ai-bubble {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        color: white;
+        background: linear-gradient(135deg, #00d4ff 0%, #00fff9 100%);
+        color: #1a1a2e;
         padding: 1rem 1.5rem;
         border-radius: 20px 20px 20px 5px;
         display: inline-block;
         margin: 0.5rem 0;
         max-width: 85%;
         word-wrap: break-word;
-        box-shadow: 0 4px 15px rgba(240, 147, 251, 0.4);
-        font-weight: 500;
+        box-shadow: 0 4px 15px rgba(0, 212, 255, 0.5);
+        font-weight: 600;
         animation: slideInLeft 0.4s ease;
     }
     
@@ -148,8 +142,83 @@ st.markdown(
         }
     }
     
+    /* PRIORITÀ STYLING - Super evidenti */
+    .priority-1 {
+        background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%) !important;
+        color: #1a1a2e !important;
+        font-weight: 900 !important;
+        border: 3px solid #ffd700 !important;
+        box-shadow: 0 0 30px rgba(255, 215, 0, 0.8), inset 0 0 20px rgba(255, 237, 78, 0.6) !important;
+        animation: pulse-gold 2s ease-in-out infinite !important;
+    }
+    
+    @keyframes pulse-gold {
+        0%, 100% { 
+            transform: scale(1); 
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.8), inset 0 0 20px rgba(255, 237, 78, 0.6);
+        }
+        50% { 
+            transform: scale(1.02); 
+            box-shadow: 0 0 50px rgba(255, 215, 0, 1), inset 0 0 30px rgba(255, 237, 78, 0.8);
+        }
+    }
+    
+    .priority-2 {
+        background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 100%) !important;
+        color: #1a1a2e !important;
+        font-weight: 800 !important;
+        border: 2px solid #c0c0c0 !important;
+        box-shadow: 0 0 20px rgba(192, 192, 192, 0.7), inset 0 0 15px rgba(232, 232, 232, 0.5) !important;
+        animation: pulse-silver 2.5s ease-in-out infinite !important;
+    }
+    
+    @keyframes pulse-silver {
+        0%, 100% { 
+            transform: scale(1);
+            box-shadow: 0 0 20px rgba(192, 192, 192, 0.7), inset 0 0 15px rgba(232, 232, 232, 0.5);
+        }
+        50% { 
+            transform: scale(1.015);
+            box-shadow: 0 0 35px rgba(192, 192, 192, 0.9), inset 0 0 25px rgba(232, 232, 232, 0.7);
+        }
+    }
+    
+    .priority-3 {
+        background: linear-gradient(135deg, #cd7f32 0%, #e09142 100%) !important;
+        color: #1a1a2e !important;
+        font-weight: 700 !important;
+        border: 2px solid #cd7f32 !important;
+        box-shadow: 0 0 15px rgba(205, 127, 50, 0.6), inset 0 0 10px rgba(224, 145, 66, 0.4) !important;
+        animation: pulse-bronze 3s ease-in-out infinite !important;
+    }
+    
+    @keyframes pulse-bronze {
+        0%, 100% { 
+            transform: scale(1);
+            box-shadow: 0 0 15px rgba(205, 127, 50, 0.6), inset 0 0 10px rgba(224, 145, 66, 0.4);
+        }
+        50% { 
+            transform: scale(1.01);
+            box-shadow: 0 0 25px rgba(205, 127, 50, 0.8), inset 0 0 15px rgba(224, 145, 66, 0.6);
+        }
+    }
+    
+    .priority-4 {
+        background: linear-gradient(135deg, rgba(0,212,255,0.15) 0%, rgba(0,255,249,0.15) 100%) !important;
+        color: #00fff9 !important;
+        font-weight: 600 !important;
+        border: 1px solid rgba(0,212,255,0.4) !important;
+    }
+    
+    .priority-5 {
+        background: rgba(26, 26, 46, 0.5) !important;
+        color: #94a3b8 !important;
+        font-weight: 500 !important;
+        border: 1px solid rgba(148, 163, 184, 0.3) !important;
+    }
+    
     .delete-row {
-        background: linear-gradient(135deg, rgba(255,80,80,0.1) 0%, rgba(255,120,120,0.15) 100%);
+        background: linear-gradient(135deg, rgba(255,80,80,0.2) 0%, rgba(255,120,120,0.25) 100%);
         border-left: 4px solid #ff5050;
         padding: 1rem;
         margin: 0.8rem 0;
@@ -159,26 +228,27 @@ st.markdown(
     }
     
     .delete-row:hover {
-        background: linear-gradient(135deg, rgba(255,80,80,0.2) 0%, rgba(255,120,120,0.25) 100%);
+        background: linear-gradient(135deg, rgba(255,80,80,0.3) 0%, rgba(255,120,120,0.35) 100%);
         transform: translateX(5px);
     }
     
     /* Stili bottoni Streamlit */
     .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #0f3460 0%, #533483 100%);
         color: white;
-        border: none;
+        border: 1px solid rgba(0,212,255,0.3);
         border-radius: 12px;
         padding: 0.75rem 2rem;
         font-weight: 600;
         font-size: 1rem;
         transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 4px 15px rgba(15, 52, 96, 0.5);
     }
     
     .stButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 25px rgba(102, 126, 234, 0.6);
+        box-shadow: 0 6px 25px rgba(0, 212, 255, 0.6);
+        border-color: rgba(0,212,255,0.6);
     }
     
     .stButton > button:active {
@@ -190,19 +260,19 @@ st.markdown(
     .stTextArea > div > div > textarea,
     .stSelectbox > div > div > select {
         border-radius: 12px;
-        border: 2px solid rgba(102, 126, 234, 0.3);
+        border: 2px solid rgba(0, 212, 255, 0.3);
         padding: 0.75rem 1rem;
         transition: all 0.3s ease;
-        background: rgba(255,255,255,1);
-        color: #1e293b;
+        background: rgba(26, 26, 46, 0.8);
+        color: #ffffff;
         font-weight: 500;
     }
     
     .stTextInput > div > div > input:focus,
     .stTextArea > div > div > textarea:focus,
     .stSelectbox > div > div > select:focus {
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+        border-color: #00d4ff;
+        box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.25);
     }
     
     /* Label styling */
@@ -211,15 +281,16 @@ st.markdown(
     .stSelectbox > label,
     .stMultiSelect > label,
     .stSlider > label {
-        color: #1e293b !important;
+        color: #00fff9 !important;
         font-weight: 600 !important;
         font-size: 0.95rem !important;
     }
     
     /* Multiselect */
     .stMultiSelect > div > div {
-        background: rgba(255,255,255,1);
-        color: #1e293b;
+        background: rgba(26, 26, 46, 0.8);
+        color: #ffffff;
+        border-color: rgba(0, 212, 255, 0.3);
     }
     
     /* Checkbox styling */
@@ -228,7 +299,7 @@ st.markdown(
     }
     
     .stCheckbox > label {
-        color: #1e293b !important;
+        color: #ffffff !important;
         font-weight: 500 !important;
     }
     
@@ -236,47 +307,47 @@ st.markdown(
     .stDataFrame {
         border-radius: 16px;
         overflow: hidden;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.5);
     }
     
-    /* Miglior contrasto per il testo nelle tabelle */
     .stDataFrame td, .stDataFrame th {
-        color: #1e293b !important;
+        color: #ffffff !important;
+        background-color: rgba(26, 26, 46, 0.8) !important;
     }
     
     /* Download button */
     .stDownloadButton > button {
-        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        color: white;
+        background: linear-gradient(135deg, #00d4ff 0%, #00fff9 100%);
+        color: #1a1a2e;
         border: none;
         border-radius: 12px;
         padding: 0.75rem 2rem;
-        font-weight: 600;
+        font-weight: 700;
         transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+        box-shadow: 0 4px 15px rgba(0, 212, 255, 0.5);
     }
     
     .stDownloadButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 25px rgba(79, 172, 254, 0.6);
+        box-shadow: 0 6px 25px rgba(0, 212, 255, 0.7);
     }
     
     /* Slider */
     .stSlider > div > div > div {
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(90deg, #0f3460 0%, #533483 100%);
     }
     
     /* Success/Error messages */
     .stSuccess {
-        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        background: linear-gradient(135deg, #00d4ff 0%, #00fff9 100%);
         border-radius: 12px;
         padding: 1rem;
-        color: white;
-        font-weight: 600;
+        color: #1a1a2e;
+        font-weight: 700;
     }
     
     .stError {
-        background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+        background: linear-gradient(135deg, #ff5050 0%, #ff7070 100%);
         border-radius: 12px;
         padding: 1rem;
         color: white;
@@ -284,15 +355,15 @@ st.markdown(
     }
     
     .stWarning {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
         border-radius: 12px;
         padding: 1rem;
-        color: white;
+        color: #1a1a2e;
         font-weight: 600;
     }
     
     .stInfo {
-        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        background: linear-gradient(135deg, #0f3460 0%, #533483 100%);
         border-radius: 12px;
         padding: 1rem;
         color: white;
@@ -301,7 +372,7 @@ st.markdown(
     
     /* Spinner */
     .stSpinner > div {
-        border-top-color: #667eea !important;
+        border-top-color: #00d4ff !important;
     }
     
     /* Mobile responsive */
@@ -332,6 +403,16 @@ st.markdown(
     
     .card {
         animation: fadeInUp 0.6s ease;
+    }
+    
+    /* Badge priorità nella tabella */
+    .priority-badge {
+        display: inline-block;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-weight: 700;
+        font-size: 0.85rem;
+        margin: 0.2rem;
     }
     </style>
     """,
@@ -485,7 +566,7 @@ if "saved_password" not in st.session_state:
 # Data functions
 # -------------------------
 @st.cache_data
-def load_data(path="STRUTTURE_cleaned.csv"):
+def load_data(path="STRUTTURE (1).csv"):
     try:
         df = pd.read_csv(path)
         return df
@@ -493,7 +574,7 @@ def load_data(path="STRUTTURE_cleaned.csv"):
         st.error(f"Errore lettura CSV '{path}': {e}")
         return None
 
-def save_data(df, path="STRUTTURE_cleaned.csv"):
+def save_data(df, path="STRUTTURE (1).csv"):
     try:
         df.to_csv(path, index=False)
         return True
@@ -587,11 +668,11 @@ def perform_login(username, password, remember=False):
 def show_login():
     st.markdown("<div style='text-align: center; padding: 2rem 0;'>", unsafe_allow_html=True)
     st.markdown("<h1>🏔️ STRUTTURE</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color: rgba(255,255,255,0.95); font-size: 1.2rem; font-weight: 500; text-shadow: 0 2px 10px rgba(0,0,0,0.3);'>Sistema di gestione dati sci di fondo</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color: rgba(0,255,249,0.95); font-size: 1.2rem; font-weight: 500; text-shadow: 0 2px 10px rgba(0,212,255,0.5);'>Sistema di gestione dati sci di fondo</p>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
     
     st.markdown("<div class='card' style='max-width: 500px; margin: 0 auto;'>", unsafe_allow_html=True)
-    st.markdown("<h2 style='color: #667eea; text-align: center; margin-bottom: 1rem;'>🔐 Accesso</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #00d4ff; text-align: center; margin-bottom: 1rem;'>🔐 Accesso</h2>", unsafe_allow_html=True)
     
     if st.session_state["auth_app"] is None:
         with st.spinner("Inizializzazione in corso..."):
@@ -600,7 +681,7 @@ def show_login():
             st.session_state["auth_error"] = error
     
     if st.session_state["auth_error"]:
-        st.markdown(f"<div style='background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); padding: 1rem; border-radius: 12px; color: white; font-weight: 600; text-align: center; margin: 1rem 0;'>❌ {st.session_state['auth_error']}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='background: linear-gradient(135deg, #ff5050 0%, #ff7070 100%); padding: 1rem; border-radius: 12px; color: white; font-weight: 600; text-align: center; margin: 1rem 0;'>❌ {st.session_state['auth_error']}</div>", unsafe_allow_html=True)
         
         if st.button("🔄 Riprova connessione", key="retry_conn"):
             st.session_state["auth_app"] = None
@@ -649,8 +730,8 @@ def show_login():
             st.rerun()
     
     if st.session_state.get("login_error"):
-        st.markdown(f"<div style='background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); padding: 1rem; border-radius: 12px; color: white; font-weight: 600; text-align: center; margin: 1rem 0;'>❌ {st.session_state['login_error']}</div>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: #64748b;'>💡 Verifica le credenziali e riprova.</p>", unsafe_allow_html=True)
+        st.markdown(f"<div style='background: linear-gradient(135deg, #ff5050 0%, #ff7070 100%); padding: 1rem; border-radius: 12px; color: white; font-weight: 600; text-align: center; margin: 1rem 0;'>❌ {st.session_state['login_error']}</div>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #94a3b8;'>💡 Verifica le credenziali e riprova.</p>", unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -705,6 +786,7 @@ def summarise_dataframe_for_ai(df):
         col_data = find_col(["data"])
         col_luogo = find_col(["luogo", "localita"])
         col_cons = find_col(["considerazione", "note", "commento"])
+        col_prior = find_col(["priorita", "priority"])
 
         if col_data:
             try:
@@ -719,6 +801,13 @@ def summarise_dataframe_for_ai(df):
             try:
                 top_luoghi = df[col_luogo].dropna().astype(str).value_counts().head(6)
                 parts.append("Top località: " + "; ".join([f"{i} ({int(v)})" for i, v in top_luoghi.items()]))
+            except Exception:
+                pass
+
+        if col_prior:
+            try:
+                prior_counts = df[col_prior].value_counts()
+                parts.append(f"Priorità: {dict(prior_counts)}")
             except Exception:
                 pass
 
@@ -754,7 +843,7 @@ def summarise_dataframe_for_ai(df):
 
 def chat_ai_box(df_context):
     st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("<h2 style='color: #667eea; margin-bottom: 0.5rem;'>🤖 Consulenza AI</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #00d4ff; margin-bottom: 0.5rem;'>🤖 Consulenza AI</h2>", unsafe_allow_html=True)
     st.markdown("<div class='small-muted' style='margin-bottom: 1.5rem;'>Fai domande sui dati filtrati e ricevi consigli intelligenti.</div>", unsafe_allow_html=True)
 
     for role, text in st.session_state["chat_history"]:
@@ -780,8 +869,8 @@ def chat_ai_box(df_context):
             st.session_state["chat_history"].append(("user", user_q))
 
             system_prompt = (
-                "Sei un assistente per sci di fondo. "
-                "Rispondi in italiano in modo conciso e pratico."
+                "Sei un assistente esperto per sci di fondo. "
+                "Rispondi in italiano in modo conciso e pratico, fornendo consigli tecnici basati sui dati."
             )
 
             summary = summarise_dataframe_for_ai(df_context)
@@ -905,6 +994,90 @@ def show_delete_interface(df):
             st.rerun()
 
 # -------------------------
+# Funzione per formattare DataFrame con priorità
+# -------------------------
+
+def format_dataframe_with_priority(df):
+    """Formatta il DataFrame evidenziando le righe per priorità"""
+    def find_col(possibles):
+        for p in possibles:
+            for c in df.columns:
+                if p.lower() in c.lower():
+                    return c
+        return None
+    
+    col_prior = find_col(["priorita", "priority"])
+    
+    if col_prior and col_prior in df.columns:
+        # Ordina per priorità
+        df_sorted = df.copy()
+        df_sorted[col_prior] = pd.to_numeric(df_sorted[col_prior], errors='coerce')
+        df_sorted = df_sorted.sort_values(by=col_prior, na_position='last')
+        
+        return df_sorted
+    
+    return df
+
+def display_priority_dataframe(df):
+    """Visualizza DataFrame con evidenziazione priorità"""
+    def find_col(possibles):
+        for p in possibles:
+            for c in df.columns:
+                if p.lower() in c.lower():
+                    return c
+        return None
+    
+    col_prior = find_col(["priorita", "priority"])
+    
+    if col_prior and col_prior in df.columns:
+        st.markdown("""
+        <div style='margin: 1rem 0; padding: 1rem; background: rgba(0,212,255,0.1); border-radius: 12px; border: 1px solid rgba(0,212,255,0.3);'>
+            <h4 style='color: #00d4ff; margin: 0 0 0.5rem 0;'>🏆 Legenda Priorità:</h4>
+            <div style='display: flex; gap: 1rem; flex-wrap: wrap;'>
+                <span class='priority-badge priority-1'>🥇 Priorità 1 - PRIMA SCELTA</span>
+                <span class='priority-badge priority-2'>🥈 Priorità 2 - Seconda scelta</span>
+                <span class='priority-badge priority-3'>🥉 Priorità 3 - Terza scelta</span>
+                <span class='priority-badge priority-4'>4️⃣ Priorità 4</span>
+                <span class='priority-badge priority-5'>5️⃣ Priorità 5+</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Ordina per priorità
+        df_display = df.copy()
+        df_display[col_prior] = pd.to_numeric(df_display[col_prior], errors='coerce')
+        df_display = df_display.sort_values(by=col_prior, na_position='last')
+        
+        # Mostra per gruppi di priorità
+        for priority in [1, 2, 3, 4, 5]:
+            priority_rows = df_display[df_display[col_prior] == priority]
+            
+            if len(priority_rows) > 0:
+                emoji_map = {1: "🥇", 2: "🥈", 3: "🥉", 4: "4️⃣", 5: "5️⃣"}
+                priority_class = f"priority-{priority}"
+                
+                st.markdown(f"""
+                <div class='{priority_class}' style='padding: 1rem; margin: 1rem 0; border-radius: 16px;'>
+                    <h3 style='margin: 0 0 1rem 0;'>{emoji_map.get(priority, '')} PRIORITÀ {priority} - {len(priority_rows)} risultati</h3>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.dataframe(priority_rows, use_container_width=True, height=min(400, len(priority_rows) * 35 + 50))
+        
+        # Righe senza priorità
+        no_priority = df_display[df_display[col_prior].isna()]
+        if len(no_priority) > 0:
+            st.markdown("""
+            <div style='padding: 1rem; margin: 1rem 0; border-radius: 16px; background: rgba(148, 163, 184, 0.1); border: 1px solid rgba(148, 163, 184, 0.3);'>
+                <h3 style='margin: 0 0 1rem 0; color: #94a3b8;'>📝 Senza Priorità - {} risultati</h3>
+            </div>
+            """.format(len(no_priority)), unsafe_allow_html=True)
+            
+            st.dataframe(no_priority, use_container_width=True, height=min(400, len(no_priority) * 35 + 50))
+    else:
+        st.dataframe(df, use_container_width=True, height=500)
+
+# -------------------------
 # Main app
 # -------------------------
 
@@ -914,8 +1087,8 @@ def main_app():
         st.markdown("""
             <div style='text-align:center; padding: 1rem 0; margin-bottom: 2rem;'>
                 <h1 style='margin-bottom: 0.5rem;'>🏔️ STRUTTURE Dashboard</h1>
-                <p style='color: rgba(255,255,255,0.98); font-size: 1.1rem; font-weight: 500; text-shadow: 0 2px 10px rgba(0,0,0,0.4); margin: 0;'>
-                    Benvenuto, <strong style='font-weight: 700;'>{}</strong> 
+                <p style='color: rgba(0,255,249,0.98); font-size: 1.1rem; font-weight: 500; text-shadow: 0 2px 10px rgba(0,212,255,0.4); margin: 0;'>
+                    Benvenuto, <strong style='font-weight: 700; color: #00d4ff;'>{}</strong> 
                     <span style='display: inline-block; animation: wave 2s ease-in-out infinite;'>👋</span>
                 </p>
             </div>
@@ -941,9 +1114,10 @@ def main_app():
 
         df = load_data()
         if df is None:
-            st.markdown("<div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 1.5rem; border-radius: 12px; color: white; font-weight: 600; text-align: center;'>📊 Nessun dataset disponibile. Carica STRUTTURE_cleaned.csv</div>", unsafe_allow_html=True)
+            st.markdown("<div style='background: linear-gradient(135deg, #00d4ff 0%, #00fff9 100%); padding: 1.5rem; border-radius: 12px; color: #1a1a2e; font-weight: 700; text-align: center;'>📊 Nessun dataset disponibile. Carica STRUTTURE (1).csv</div>", unsafe_allow_html=True)
             st.stop()
 
+        # Pulizia colonne non necessarie
         drop_cols = ["luogo_clean", "tipo_neve_clean", "hum_inizio_sospetto", "hum_fine_sospetto"]
         df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
 
@@ -958,6 +1132,7 @@ def main_app():
         col_luogo = find_col(["luogo", "localita"])
         col_neve = find_col(["tipo_neve", "neve"])
         col_cons = find_col(["considerazione", "note", "commento"])
+        col_prior = find_col(["priorita", "priority"])
         col_temp = [c for c in df.columns if "temp" in c.lower()]
         col_hum = [c for c in df.columns if "hum" in c.lower() or "umid" in c.lower()]
 
@@ -969,7 +1144,7 @@ def main_app():
 
         # --- Gestione dati ---
         st.markdown("<div class='card'>", unsafe_allow_html=True)
-        st.markdown("<h2 style='color: #667eea; margin-bottom: 1.5rem;'>✨ Gestione dati</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color: #00d4ff; margin-bottom: 1.5rem;'>✨ Gestione dati</h2>", unsafe_allow_html=True)
         
         col_add_btn, col_del_btn = st.columns([1, 1])
         
@@ -988,7 +1163,7 @@ def main_app():
                     st.rerun()
         
         if st.session_state["show_add_form"]:
-            st.markdown("<h3 style='color: #667eea; margin: 1.5rem 0;'>➕ Inserisci nuova riga</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='color: #00d4ff; margin: 1.5rem 0;'>➕ Inserisci nuova riga</h3>", unsafe_allow_html=True)
             
             new_data = {}
             cols_per_row = 3
@@ -1000,7 +1175,11 @@ def main_app():
                 
                 for j, col in enumerate(cols_batch):
                     with streamlit_cols[j]:
-                        new_data[col] = st.text_input(col, key=f"new_{col}")
+                        # Campo speciale per PRIORITA'
+                        if col_prior and col.lower() == col_prior.lower():
+                            new_data[col] = st.selectbox(col, options=["", "1", "2", "3", "4", "5"], key=f"new_{col}")
+                        else:
+                            new_data[col] = st.text_input(col, key=f"new_{col}")
             
             col_add, col_cancel = st.columns([1, 1])
             with col_add:
@@ -1027,13 +1206,19 @@ def main_app():
 
         # --- Filtri ---
         st.markdown("<div class='card'>", unsafe_allow_html=True)
-        st.markdown("<h2 style='color: #667eea; margin-bottom: 1.5rem;'>🎯 Filtri avanzati</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color: #00d4ff; margin-bottom: 1.5rem;'>🎯 Filtri avanzati</h2>", unsafe_allow_html=True)
         
         c1, c2 = st.columns(2)
         with c1:
             luogo_sel = st.multiselect("📍 Seleziona luogo",
                                        sorted(df[col_luogo].dropna().unique())) if col_luogo else None
             tipo_neve = st.text_input("❄️ Tipo di neve") if col_neve else None
+            
+            # Filtro priorità
+            if col_prior:
+                priority_filter = st.multiselect("🏆 Filtra per Priorità", 
+                                                 options=["1", "2", "3", "4", "5"],
+                                                 help="Seleziona una o più priorità")
         with c2:
             temp_field = st.selectbox("🌡️ Campo temperatura", col_temp) if col_temp else None
             temp_range = None
@@ -1062,6 +1247,9 @@ def main_app():
                 df_filtrato = df_filtrato[df_filtrato[col_luogo].isin(luogo_sel)]
             if tipo_neve and col_neve:
                 df_filtrato = df_filtrato[df_filtrato[col_neve].astype(str).str.contains(tipo_neve, case=False, na=False)]
+            if col_prior and 'priority_filter' in locals() and priority_filter:
+                df_filtrato[col_prior] = df_filtrato[col_prior].astype(str)
+                df_filtrato = df_filtrato[df_filtrato[col_prior].isin(priority_filter)]
             if temp_field and temp_range:
                 s = pd.to_numeric(df_filtrato[temp_field], errors="coerce")
                 df_filtrato = df_filtrato[(s >= temp_range[0]) & (s <= temp_range[1])]
@@ -1081,7 +1269,7 @@ def main_app():
                     pass
 
         # --- Ricerca globale ---
-        st.markdown("<h3 style='color: #667eea; margin-top: 2rem; margin-bottom: 1rem;'>🔎 Ricerca globale</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='color: #00d4ff; margin-top: 2rem; margin-bottom: 1rem;'>🔎 Ricerca globale</h3>", unsafe_allow_html=True)
         global_search = st.text_input("🔎 Cerca in tutto il file", key="global_search")
         search_clicked = st.button("🔍 Cerca", key="search_btn")
         
@@ -1091,12 +1279,13 @@ def main_app():
                 mask |= df_filtrato[c].astype(str).str.contains(global_search, case=False, na=False)
             df_filtrato = df_filtrato[mask]
 
-        # --- Risultati ---
-        st.markdown(f"<h3 style='color: #667eea; margin-top: 2rem;'>📊 Risultati trovati: <span style='color: #764ba2; font-weight: 900;'>{len(df_filtrato)}</span></h3>", unsafe_allow_html=True)
+        # --- Risultati con priorità evidenziate ---
+        st.markdown(f"<h3 style='color: #00d4ff; margin-top: 2rem;'>📊 Risultati trovati: <span style='color: #00fff9; font-weight: 900;'>{len(df_filtrato)}</span></h3>", unsafe_allow_html=True)
         
-        df_display = df_filtrato.fillna('')
-        
-        st.dataframe(df_display, use_container_width=True, height=500)
+        if len(df_filtrato) > 0:
+            display_priority_dataframe(df_filtrato)
+        else:
+            st.warning("🔍 Nessun risultato trovato con i filtri applicati")
 
         st.download_button(
             label="📥 Scarica risultati (CSV)",
