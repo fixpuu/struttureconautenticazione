@@ -129,21 +129,24 @@ def show_login_ui():
     st.markdown("## 🔐 Login")
     if st.session_state.get("auth_init_error"):
         st.error("Errore inizializzazione KeyAuth: " + str(st.session_state.get("auth_init_error")))
+
     with st.form("login_form"):
         c1, c2 = st.columns([2,2])
         username = c1.text_input("👤 Username")
         password = c2.text_input("🔑 Password", type="password")
         submitted = st.form_submit_button("Accedi")
+
         if submitted:
             ok = perform_login(username, password)
             if ok:
                 st.success("✅ Login effettuato!")
                 time.sleep(0.25)
-                st.experimental_rerun()
+                st.rerun()     # <<< CORRETTO
             else:
                 st.error("❌ " + (st.session_state.get("login_error") or "Errore login"))
+
     st.markdown("</div>", unsafe_allow_html=True)
-    # stop per non autenticati
+
     if not st.session_state["auth"]:
         st.stop()
 
@@ -392,3 +395,4 @@ if not st.session_state.get("auth", False):
     show_login_ui()
 else:
     main_app()
+
