@@ -476,18 +476,22 @@ def summarise_dataframe_for_ai(df):
         col_struttura = find_col(["struttura"])
         col_impronta = find_col(["impronta"])
         col_neve = find_col(["tipo_neve", "neve"])
-        col_meteo = find_col(["meteo", "condizioni"])
-# Date
-if col_data:
-    try:
-        df_temp = df.copy()
-        df_temp[col_data] = pd.to_datetime(df_temp[col_data], errors="coerce")
-        min_d = df_temp[col_data].min()
-        max_d = df_temp[col_data].max()
-        count_dates = df_temp[col_data].notna().sum()
-        parts.append(
-            f"📅 PERIODO: {min_d} → {max_d} ({count_dates} date valide)"
-        )
+col_meteo = find_col(["meteo", "condizioni"])
+
+        # Date
+        if col_data:
+            try:
+                df_temp = df.copy()
+                df_temp[col_data] = pd.to_datetime(df_temp[col_data], errors="coerce")
+                min_d = df_temp[col_data].min()
+                max_d = df_temp[col_data].max()
+                count_dates = df_temp[col_data].notna().sum()
+                parts.append(
+                    f"📅 PERIODO: {min_d} → {max_d} ({count_dates} date valide)"
+                )
+            except Exception:
+                pass
+
     except Exception:
         pass
 
@@ -905,3 +909,4 @@ def main_app():
         # --- Gestione dati ---
         st.markdown("<div class='card'>", unsafe_allow_html=True)
         st.markdown("<h2 style='color: #00d4ff; margin-bottom: 1.5rem;'>
+
