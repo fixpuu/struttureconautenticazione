@@ -1254,71 +1254,25 @@ def main_app():
                         temp_range = None
                         temp_attivo = False
                     
-            # Filtri umidità
+            # --- Filtro umidità LIBERO ---
             hum_field = st.selectbox("💧 Campo umidità", col_hum, key="filtro_hum_field") if col_hum else None
             hum_range = None
+            
             if hum_field:
-                s = pd.to_numeric(df[hum_field], errors="coerce")
-                if s.notna().sum() > 0:
-                    hum_min_val_original = float(s.min())
-                    hum_max_val_original = float(s.max())
-                    hum_min_val = hum_min_val_original
-                    hum_max_val = hum_max_val_original
-                    
-                    # Inizializza valori in session_state se non esistono o se cambia il campo
-                    hum_min_key = f"hum_min_{hum_field}"
-                    hum_max_key = f"hum_max_{hum_field}"
-                    
-                    # Controlla se il campo è cambiato (confronta con il campo precedente salvato)
-                    prev_hum_field_key = "prev_hum_field"
-                    if prev_hum_field_key not in st.session_state or st.session_state[prev_hum_field_key] != hum_field:
-                        # Campo cambiato, resetta i valori
-                        st.session_state[hum_min_key] = hum_min_val_original
-                        st.session_state[hum_max_key] = hum_max_val_original
-                        st.session_state[prev_hum_field_key] = hum_field
-                    
-                    if hum_min_key not in st.session_state:
-                        st.session_state[hum_min_key] = hum_min_val_original
-                    if hum_max_key not in st.session_state:
-                        st.session_state[hum_max_key] = hum_max_val_original
-                    
-                    # Se min e max sono uguali, espandi leggermente il range per permettere input
-                    if hum_min_val_original == hum_max_val_original:
-                        hum_min_val = hum_min_val_original - 0.1 if hum_min_val_original > 0 else 0
-                        hum_max_val = hum_max_val_original + 0.1
-                    
-                    # Due colonne per min e max
-                    hum_col1, hum_col2 = st.columns(2)
-                    with hum_col1:
-                        hum_min = st.number_input("💧 Umid. Min", 
-                                                  min_value=hum_min_val, 
-                                                  max_value=hum_max_val,
-                                                  value=st.session_state[hum_min_key],
-                                                  step=0.1,
-                                                  format="%.1f",
-                                                  key=f"hum_min_input_{hum_field}",
-                                                  help=f"Range disponibile: {hum_min_val:.1f} - {hum_max_val:.1f}")
-                        st.session_state[hum_min_key] = hum_min
-                    with hum_col2:
-                        hum_max = st.number_input("💧 Umid. Max", 
-                                                 min_value=hum_min_val, 
-                                                 max_value=hum_max_val,
-                                                 value=st.session_state[hum_max_key],
-                                                 step=0.1,
-                                                 format="%.1f",
-                                                 key=f"hum_max_input_{hum_field}",
-                                                 help=f"Range disponibile: {hum_min_val:.1f} - {hum_max_val:.1f}")
-                        st.session_state[hum_max_key] = hum_max
-                    
-                    # Verifica che min <= max
-                    if hum_min <= hum_max:
-                        hum_range = (hum_min, hum_max)
-                        # Filtro attivo solo se diverso dal range completo originale
-                        hum_attivo = (hum_min > hum_min_val_original or hum_max < hum_max_val_original)
-                    else:
-                        st.warning("⚠️ Il valore minimo deve essere ≤ al massimo")
-                        hum_range = None
-                        hum_attivo = False
+                hum_col1, hum_col2 = st.columns(2)
+                with hum_col1:
+                    hum_min = st.number_input("💧 Umidità MIN", value=0.0, step=0.1, key="hum_min_input")
+                with hum_col2:
+                    hum_max = st.number_input("💧 Umidità MAX", value=100.0, step=0.1, key="hum_max_input")
+
+                if hum_min <= hum_max:
+                    hum_range = (hum_min, hum_max)
+                    hum_attivo = True
+                else:
+                    st.warning("⚠️ Min deve essere ≤ Max")
+                    hum_attivo = False
+            else:
+                hum_attivo = False
                     
             solo_cons = st.checkbox("📝 Solo con considerazioni", value=False, key="filtro_solo_cons") if col_cons else False
         
