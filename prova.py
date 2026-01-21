@@ -1170,8 +1170,10 @@ def main_app():
         st.markdown("<h2 style='color: #00d4ff; margin-bottom: 1.5rem;'>🎯 Filtri avanzati</h2>", unsafe_allow_html=True)
         st.markdown("<div class='small-muted' style='margin-bottom: 1.5rem;'>💡 I filtri vengono applicati automaticamente e possono essere combinati insieme (es. temperatura X + umidità Y)</div>", unsafe_allow_html=True)
         
-        # Inizializza priority_filter
+        # Inizializza priority_filter e variabili filtri
         priority_filter = []
+        temp_attivo = False
+        hum_attivo = False
         
         c1, c2 = st.columns(2)
         with c1:
@@ -1195,7 +1197,7 @@ def main_app():
                     temp_min_val = float(s.min())
                     temp_max_val = float(s.max())
                     
-                    # Inizializza valori in session_state se non esistono
+                    # Inizializza valori in session_state se non esistono o se cambia il campo
                     temp_min_key = f"temp_min_{temp_field}"
                     temp_max_key = f"temp_max_{temp_field}"
                     if temp_min_key not in st.session_state:
@@ -1211,7 +1213,7 @@ def main_app():
                                                    max_value=temp_max_val,
                                                    value=st.session_state[temp_min_key],
                                                    key=f"temp_min_input_{temp_field}",
-                                                   help=f"Valore minimo: {temp_min_val:.1f}")
+                                                   help=f"Range disponibile: {temp_min_val:.1f} - {temp_max_val:.1f}")
                         st.session_state[temp_min_key] = temp_min
                     with temp_col2:
                         temp_max = st.number_input("🌡️ Temp. Max", 
@@ -1219,15 +1221,18 @@ def main_app():
                                                    max_value=temp_max_val,
                                                    value=st.session_state[temp_max_key],
                                                    key=f"temp_max_input_{temp_field}",
-                                                   help=f"Valore massimo: {temp_max_val:.1f}")
+                                                   help=f"Range disponibile: {temp_min_val:.1f} - {temp_max_val:.1f}")
                         st.session_state[temp_max_key] = temp_max
                     
                     # Verifica che min <= max
                     if temp_min <= temp_max:
                         temp_range = (temp_min, temp_max)
+                        # Filtro attivo solo se diverso dal range completo
+                        temp_attivo = (temp_min > temp_min_val or temp_max < temp_max_val)
                     else:
                         st.warning("⚠️ Il valore minimo deve essere ≤ al massimo")
                         temp_range = None
+                        temp_attivo = False
                     
             # Filtri umidità
             hum_field = st.selectbox("💧 Campo umidità", col_hum, key="filtro_hum_field") if col_hum else None
@@ -1238,7 +1243,7 @@ def main_app():
                     hum_min_val = float(s.min())
                     hum_max_val = float(s.max())
                     
-                    # Inizializza valori in session_state se non esistono
+                    # Inizializza valori in session_state se non esistono o se cambia il campo
                     hum_min_key = f"hum_min_{hum_field}"
                     hum_max_key = f"hum_max_{hum_field}"
                     if hum_min_key not in st.session_state:
@@ -1254,7 +1259,7 @@ def main_app():
                                                   max_value=hum_max_val,
                                                   value=st.session_state[hum_min_key],
                                                   key=f"hum_min_input_{hum_field}",
-                                                  help=f"Valore minimo: {hum_min_val:.1f}")
+                                                  help=f"Range disponibile: {hum_min_val:.1f} - {hum_max_val:.1f}")
                         st.session_state[hum_min_key] = hum_min
                     with hum_col2:
                         hum_max = st.number_input("💧 Umid. Max", 
@@ -1262,15 +1267,18 @@ def main_app():
                                                  max_value=hum_max_val,
                                                  value=st.session_state[hum_max_key],
                                                  key=f"hum_max_input_{hum_field}",
-                                                 help=f"Valore massimo: {hum_max_val:.1f}")
+                                                 help=f"Range disponibile: {hum_min_val:.1f} - {hum_max_val:.1f}")
                         st.session_state[hum_max_key] = hum_max
                     
                     # Verifica che min <= max
                     if hum_min <= hum_max:
                         hum_range = (hum_min, hum_max)
+                        # Filtro attivo solo se diverso dal range completo
+                        hum_attivo = (hum_min > hum_min_val or hum_max < hum_max_val)
                     else:
                         st.warning("⚠️ Il valore minimo deve essere ≤ al massimo")
                         hum_range = None
+                        hum_attivo = False
                     
             solo_cons = st.checkbox("📝 Solo con considerazioni", value=False, key="filtro_solo_cons") if col_cons else False
         
@@ -1310,14 +1318,14 @@ def main_app():
             df_filtrato = df_filtrato[df_filtrato[col_prior].isin(priority_filter)]
             filtri_attivi.append(f"🏆 Priorità: {', '.join(priority_filter)}")
         
-        # Filtro per temperatura
-        if temp_field and temp_range:
+        # Filtro per temperatura (applica solo se attivo)
+        if temp_field and temp_range and temp_attivo:
             s = pd.to_numeric(df_filtrato[temp_field], errors="coerce")
             df_filtrato = df_filtrato[(s >= temp_range[0]) & (s <= temp_range[1])]
             filtri_attivi.append(f"🌡️ {temp_field}: {temp_range[0]:.1f} - {temp_range[1]:.1f}")
         
-        # Filtro per umidità
-        if hum_field and hum_range:
+        # Filtro per umidità (applica solo se attivo)
+        if hum_field and hum_range and hum_attivo:
             s = pd.to_numeric(df_filtrato[hum_field], errors="coerce")
             df_filtrato = df_filtrato[(s >= hum_range[0]) & (s <= hum_range[1])]
             filtri_attivi.append(f"💧 {hum_field}: {hum_range[0]:.1f} - {hum_range[1]:.1f}")
