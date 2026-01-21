@@ -1095,7 +1095,7 @@ def main_app():
         col_cons = find_col(["considerazione", "note", "commento"])
         col_prior = find_col(["priorita", "priority"])
         col_temp = [c for c in df.columns if "temp" in c.lower()]
-        col_hum = [c for c in df.columns if "hum" in c.lower() or "umid" in c.lower()]
+        col_hum = [c for c in df.columns if "hum" in c.lower() or "umid" in c.lower() or ("um" in c.lower() and "%" in c)]
 
         if col_data:
             try:
@@ -1194,16 +1194,32 @@ def main_app():
             if temp_field:
                 s = pd.to_numeric(df[temp_field], errors="coerce")
                 if s.notna().sum() > 0:
-                    temp_min_val = float(s.min())
-                    temp_max_val = float(s.max())
+                    temp_min_val_original = float(s.min())
+                    temp_max_val_original = float(s.max())
+                    temp_min_val = temp_min_val_original
+                    temp_max_val = temp_max_val_original
                     
                     # Inizializza valori in session_state se non esistono o se cambia il campo
                     temp_min_key = f"temp_min_{temp_field}"
                     temp_max_key = f"temp_max_{temp_field}"
+                    
+                    # Controlla se il campo è cambiato (confronta con il campo precedente salvato)
+                    prev_temp_field_key = "prev_temp_field"
+                    if prev_temp_field_key not in st.session_state or st.session_state[prev_temp_field_key] != temp_field:
+                        # Campo cambiato, resetta i valori
+                        st.session_state[temp_min_key] = temp_min_val_original
+                        st.session_state[temp_max_key] = temp_max_val_original
+                        st.session_state[prev_temp_field_key] = temp_field
+                    
                     if temp_min_key not in st.session_state:
-                        st.session_state[temp_min_key] = temp_min_val
+                        st.session_state[temp_min_key] = temp_min_val_original
                     if temp_max_key not in st.session_state:
-                        st.session_state[temp_max_key] = temp_max_val
+                        st.session_state[temp_max_key] = temp_max_val_original
+                    
+                    # Se min e max sono uguali, espandi leggermente il range per permettere input
+                    if temp_min_val_original == temp_max_val_original:
+                        temp_min_val = temp_min_val_original - 0.1 if temp_min_val_original > 0 else 0
+                        temp_max_val = temp_max_val_original + 0.1
                     
                     # Due colonne per min e max
                     temp_col1, temp_col2 = st.columns(2)
@@ -1212,6 +1228,8 @@ def main_app():
                                                    min_value=temp_min_val, 
                                                    max_value=temp_max_val,
                                                    value=st.session_state[temp_min_key],
+                                                   step=0.1,
+                                                   format="%.1f",
                                                    key=f"temp_min_input_{temp_field}",
                                                    help=f"Range disponibile: {temp_min_val:.1f} - {temp_max_val:.1f}")
                         st.session_state[temp_min_key] = temp_min
@@ -1220,6 +1238,8 @@ def main_app():
                                                    min_value=temp_min_val, 
                                                    max_value=temp_max_val,
                                                    value=st.session_state[temp_max_key],
+                                                   step=0.1,
+                                                   format="%.1f",
                                                    key=f"temp_max_input_{temp_field}",
                                                    help=f"Range disponibile: {temp_min_val:.1f} - {temp_max_val:.1f}")
                         st.session_state[temp_max_key] = temp_max
@@ -1227,8 +1247,8 @@ def main_app():
                     # Verifica che min <= max
                     if temp_min <= temp_max:
                         temp_range = (temp_min, temp_max)
-                        # Filtro attivo solo se diverso dal range completo
-                        temp_attivo = (temp_min > temp_min_val or temp_max < temp_max_val)
+                        # Filtro attivo solo se diverso dal range completo originale
+                        temp_attivo = (temp_min > temp_min_val_original or temp_max < temp_max_val_original)
                     else:
                         st.warning("⚠️ Il valore minimo deve essere ≤ al massimo")
                         temp_range = None
@@ -1240,16 +1260,32 @@ def main_app():
             if hum_field:
                 s = pd.to_numeric(df[hum_field], errors="coerce")
                 if s.notna().sum() > 0:
-                    hum_min_val = float(s.min())
-                    hum_max_val = float(s.max())
+                    hum_min_val_original = float(s.min())
+                    hum_max_val_original = float(s.max())
+                    hum_min_val = hum_min_val_original
+                    hum_max_val = hum_max_val_original
                     
                     # Inizializza valori in session_state se non esistono o se cambia il campo
                     hum_min_key = f"hum_min_{hum_field}"
                     hum_max_key = f"hum_max_{hum_field}"
+                    
+                    # Controlla se il campo è cambiato (confronta con il campo precedente salvato)
+                    prev_hum_field_key = "prev_hum_field"
+                    if prev_hum_field_key not in st.session_state or st.session_state[prev_hum_field_key] != hum_field:
+                        # Campo cambiato, resetta i valori
+                        st.session_state[hum_min_key] = hum_min_val_original
+                        st.session_state[hum_max_key] = hum_max_val_original
+                        st.session_state[prev_hum_field_key] = hum_field
+                    
                     if hum_min_key not in st.session_state:
-                        st.session_state[hum_min_key] = hum_min_val
+                        st.session_state[hum_min_key] = hum_min_val_original
                     if hum_max_key not in st.session_state:
-                        st.session_state[hum_max_key] = hum_max_val
+                        st.session_state[hum_max_key] = hum_max_val_original
+                    
+                    # Se min e max sono uguali, espandi leggermente il range per permettere input
+                    if hum_min_val_original == hum_max_val_original:
+                        hum_min_val = hum_min_val_original - 0.1 if hum_min_val_original > 0 else 0
+                        hum_max_val = hum_max_val_original + 0.1
                     
                     # Due colonne per min e max
                     hum_col1, hum_col2 = st.columns(2)
@@ -1258,6 +1294,8 @@ def main_app():
                                                   min_value=hum_min_val, 
                                                   max_value=hum_max_val,
                                                   value=st.session_state[hum_min_key],
+                                                  step=0.1,
+                                                  format="%.1f",
                                                   key=f"hum_min_input_{hum_field}",
                                                   help=f"Range disponibile: {hum_min_val:.1f} - {hum_max_val:.1f}")
                         st.session_state[hum_min_key] = hum_min
@@ -1266,6 +1304,8 @@ def main_app():
                                                  min_value=hum_min_val, 
                                                  max_value=hum_max_val,
                                                  value=st.session_state[hum_max_key],
+                                                 step=0.1,
+                                                 format="%.1f",
                                                  key=f"hum_max_input_{hum_field}",
                                                  help=f"Range disponibile: {hum_min_val:.1f} - {hum_max_val:.1f}")
                         st.session_state[hum_max_key] = hum_max
@@ -1273,8 +1313,8 @@ def main_app():
                     # Verifica che min <= max
                     if hum_min <= hum_max:
                         hum_range = (hum_min, hum_max)
-                        # Filtro attivo solo se diverso dal range completo
-                        hum_attivo = (hum_min > hum_min_val or hum_max < hum_max_val)
+                        # Filtro attivo solo se diverso dal range completo originale
+                        hum_attivo = (hum_min > hum_min_val_original or hum_max < hum_max_val_original)
                     else:
                         st.warning("⚠️ Il valore minimo deve essere ≤ al massimo")
                         hum_range = None
@@ -1294,7 +1334,8 @@ def main_app():
                 for key in list(st.session_state.keys()):
                     if key.startswith("temp_min_") or key.startswith("temp_max_") or \
                        key.startswith("hum_min_") or key.startswith("hum_max_") or \
-                       key.startswith("temp_range_") or key.startswith("hum_range_"):
+                       key.startswith("temp_range_") or key.startswith("hum_range_") or \
+                       key == "prev_temp_field" or key == "prev_hum_field":
                         del st.session_state[key]
                 st.rerun()
 
