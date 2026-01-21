@@ -1186,37 +1186,91 @@ def main_app():
                                                  help="Seleziona una o più priorità",
                                                  key="filtro_priorita")
         with c2:
+            # Filtri temperatura
             temp_field = st.selectbox("🌡️ Campo temperatura", col_temp, key="filtro_temp_field") if col_temp else None
             temp_range = None
             if temp_field:
                 s = pd.to_numeric(df[temp_field], errors="coerce")
                 if s.notna().sum() > 0:
-                    # Usa session_state per mantenere i valori dello slider
-                    temp_key = f"temp_range_{temp_field}"
-                    if temp_key not in st.session_state:
-                        st.session_state[temp_key] = (float(s.min()), float(s.max()))
+                    temp_min_val = float(s.min())
+                    temp_max_val = float(s.max())
                     
-                    temp_range = st.slider("Intervallo temperatura",
-                                           float(s.min()), float(s.max()),
-                                           value=st.session_state[temp_key],
-                                           key=f"filtro_temp_{temp_field}")
-                    st.session_state[temp_key] = temp_range
+                    # Inizializza valori in session_state se non esistono
+                    temp_min_key = f"temp_min_{temp_field}"
+                    temp_max_key = f"temp_max_{temp_field}"
+                    if temp_min_key not in st.session_state:
+                        st.session_state[temp_min_key] = temp_min_val
+                    if temp_max_key not in st.session_state:
+                        st.session_state[temp_max_key] = temp_max_val
                     
+                    # Due colonne per min e max
+                    temp_col1, temp_col2 = st.columns(2)
+                    with temp_col1:
+                        temp_min = st.number_input("🌡️ Temp. Min", 
+                                                   min_value=temp_min_val, 
+                                                   max_value=temp_max_val,
+                                                   value=st.session_state[temp_min_key],
+                                                   key=f"temp_min_input_{temp_field}",
+                                                   help=f"Valore minimo: {temp_min_val:.1f}")
+                        st.session_state[temp_min_key] = temp_min
+                    with temp_col2:
+                        temp_max = st.number_input("🌡️ Temp. Max", 
+                                                   min_value=temp_min_val, 
+                                                   max_value=temp_max_val,
+                                                   value=st.session_state[temp_max_key],
+                                                   key=f"temp_max_input_{temp_field}",
+                                                   help=f"Valore massimo: {temp_max_val:.1f}")
+                        st.session_state[temp_max_key] = temp_max
+                    
+                    # Verifica che min <= max
+                    if temp_min <= temp_max:
+                        temp_range = (temp_min, temp_max)
+                    else:
+                        st.warning("⚠️ Il valore minimo deve essere ≤ al massimo")
+                        temp_range = None
+                    
+            # Filtri umidità
             hum_field = st.selectbox("💧 Campo umidità", col_hum, key="filtro_hum_field") if col_hum else None
             hum_range = None
             if hum_field:
                 s = pd.to_numeric(df[hum_field], errors="coerce")
                 if s.notna().sum() > 0:
-                    # Usa session_state per mantenere i valori dello slider
-                    hum_key = f"hum_range_{hum_field}"
-                    if hum_key not in st.session_state:
-                        st.session_state[hum_key] = (float(s.min()), float(s.max()))
+                    hum_min_val = float(s.min())
+                    hum_max_val = float(s.max())
                     
-                    hum_range = st.slider("Intervallo umidità",
-                                           float(s.min()), float(s.max()),
-                                           value=st.session_state[hum_key],
-                                           key=f"filtro_hum_{hum_field}")
-                    st.session_state[hum_key] = hum_range
+                    # Inizializza valori in session_state se non esistono
+                    hum_min_key = f"hum_min_{hum_field}"
+                    hum_max_key = f"hum_max_{hum_field}"
+                    if hum_min_key not in st.session_state:
+                        st.session_state[hum_min_key] = hum_min_val
+                    if hum_max_key not in st.session_state:
+                        st.session_state[hum_max_key] = hum_max_val
+                    
+                    # Due colonne per min e max
+                    hum_col1, hum_col2 = st.columns(2)
+                    with hum_col1:
+                        hum_min = st.number_input("💧 Umid. Min", 
+                                                  min_value=hum_min_val, 
+                                                  max_value=hum_max_val,
+                                                  value=st.session_state[hum_min_key],
+                                                  key=f"hum_min_input_{hum_field}",
+                                                  help=f"Valore minimo: {hum_min_val:.1f}")
+                        st.session_state[hum_min_key] = hum_min
+                    with hum_col2:
+                        hum_max = st.number_input("💧 Umid. Max", 
+                                                 min_value=hum_min_val, 
+                                                 max_value=hum_max_val,
+                                                 value=st.session_state[hum_max_key],
+                                                 key=f"hum_max_input_{hum_field}",
+                                                 help=f"Valore massimo: {hum_max_val:.1f}")
+                        st.session_state[hum_max_key] = hum_max
+                    
+                    # Verifica che min <= max
+                    if hum_min <= hum_max:
+                        hum_range = (hum_min, hum_max)
+                    else:
+                        st.warning("⚠️ Il valore minimo deve essere ≤ al massimo")
+                        hum_range = None
                     
             solo_cons = st.checkbox("📝 Solo con considerazioni", value=False, key="filtro_solo_cons") if col_cons else False
         
@@ -1228,9 +1282,11 @@ def main_app():
                 st.session_state["filtro_tipo_neve"] = ""
                 st.session_state["filtro_priorita"] = []
                 st.session_state["filtro_solo_cons"] = False
-                # Reset slider ranges
+                # Reset input numerici temperatura e umidità
                 for key in list(st.session_state.keys()):
-                    if key.startswith("temp_range_") or key.startswith("hum_range_"):
+                    if key.startswith("temp_min_") or key.startswith("temp_max_") or \
+                       key.startswith("hum_min_") or key.startswith("hum_max_") or \
+                       key.startswith("temp_range_") or key.startswith("hum_range_"):
                         del st.session_state[key]
                 st.rerun()
 
@@ -1257,22 +1313,14 @@ def main_app():
         # Filtro per temperatura
         if temp_field and temp_range:
             s = pd.to_numeric(df_filtrato[temp_field], errors="coerce")
-            # Controlla se il range è diverso dal range completo
-            s_min = float(s.min())
-            s_max = float(s.max())
-            if temp_range[0] > s_min or temp_range[1] < s_max:
-                df_filtrato = df_filtrato[(s >= temp_range[0]) & (s <= temp_range[1])]
-                filtri_attivi.append(f"🌡️ {temp_field}: {temp_range[0]:.1f} - {temp_range[1]:.1f}")
+            df_filtrato = df_filtrato[(s >= temp_range[0]) & (s <= temp_range[1])]
+            filtri_attivi.append(f"🌡️ {temp_field}: {temp_range[0]:.1f} - {temp_range[1]:.1f}")
         
         # Filtro per umidità
         if hum_field and hum_range:
             s = pd.to_numeric(df_filtrato[hum_field], errors="coerce")
-            # Controlla se il range è diverso dal range completo
-            s_min = float(s.min())
-            s_max = float(s.max())
-            if hum_range[0] > s_min or hum_range[1] < s_max:
-                df_filtrato = df_filtrato[(s >= hum_range[0]) & (s <= hum_range[1])]
-                filtri_attivi.append(f"💧 {hum_field}: {hum_range[0]:.1f} - {hum_range[1]:.1f}")
+            df_filtrato = df_filtrato[(s >= hum_range[0]) & (s <= hum_range[1])]
+            filtri_attivi.append(f"💧 {hum_field}: {hum_range[0]:.1f} - {hum_range[1]:.1f}")
         
         # Filtro per considerazioni
         if solo_cons and col_cons:
