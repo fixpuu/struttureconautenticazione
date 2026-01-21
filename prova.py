@@ -1168,77 +1168,150 @@ def main_app():
         # --- Filtri ---
         st.markdown("<div class='card'>", unsafe_allow_html=True)
         st.markdown("<h2 style='color: #00d4ff; margin-bottom: 1.5rem;'>🎯 Filtri avanzati</h2>", unsafe_allow_html=True)
+        st.markdown("<div class='small-muted' style='margin-bottom: 1.5rem;'>💡 I filtri vengono applicati automaticamente e possono essere combinati insieme (es. temperatura X + umidità Y)</div>", unsafe_allow_html=True)
+        
+        # Inizializza priority_filter
+        priority_filter = []
         
         c1, c2 = st.columns(2)
         with c1:
             luogo_sel = st.multiselect("📍 Seleziona luogo",
                                        sorted(df[col_luogo].dropna().unique())) if col_luogo else None
-            tipo_neve = st.text_input("❄️ Tipo di neve") if col_neve else None
+            tipo_neve = st.text_input("❄️ Tipo di neve", key="filtro_tipo_neve") if col_neve else None
             
             # Filtro priorità
             if col_prior:
                 priority_filter = st.multiselect("🏆 Filtra per Priorità", 
                                                  options=["1", "2", "3", "4", "5"],
-                                                 help="Seleziona una o più priorità")
+                                                 help="Seleziona una o più priorità",
+                                                 key="filtro_priorita")
         with c2:
-            temp_field = st.selectbox("🌡️ Campo temperatura", col_temp) if col_temp else None
+            temp_field = st.selectbox("🌡️ Campo temperatura", col_temp, key="filtro_temp_field") if col_temp else None
             temp_range = None
             if temp_field:
                 s = pd.to_numeric(df[temp_field], errors="coerce")
                 if s.notna().sum() > 0:
+                    # Usa session_state per mantenere i valori dello slider
+                    temp_key = f"temp_range_{temp_field}"
+                    if temp_key not in st.session_state:
+                        st.session_state[temp_key] = (float(s.min()), float(s.max()))
+                    
                     temp_range = st.slider("Intervallo temperatura",
                                            float(s.min()), float(s.max()),
-                                           (float(s.min()), float(s.max())))
-            hum_field = st.selectbox("💧 Campo umidità", col_hum) if col_hum else None
+                                           value=st.session_state[temp_key],
+                                           key=f"filtro_temp_{temp_field}")
+                    st.session_state[temp_key] = temp_range
+                    
+            hum_field = st.selectbox("💧 Campo umidità", col_hum, key="filtro_hum_field") if col_hum else None
             hum_range = None
             if hum_field:
                 s = pd.to_numeric(df[hum_field], errors="coerce")
                 if s.notna().sum() > 0:
+                    # Usa session_state per mantenere i valori dello slider
+                    hum_key = f"hum_range_{hum_field}"
+                    if hum_key not in st.session_state:
+                        st.session_state[hum_key] = (float(s.min()), float(s.max()))
+                    
                     hum_range = st.slider("Intervallo umidità",
                                            float(s.min()), float(s.max()),
-                                           (float(s.min()), float(s.max())))
-            solo_cons = st.checkbox("📝 Solo con considerazioni", value=False) if col_cons else False
+                                           value=st.session_state[hum_key],
+                                           key=f"filtro_hum_{hum_field}")
+                    st.session_state[hum_key] = hum_range
+                    
+            solo_cons = st.checkbox("📝 Solo con considerazioni", value=False, key="filtro_solo_cons") if col_cons else False
         
-        apply_clicked = st.button("⚡ Applica filtri", key="apply_filters")
+        # Pulsanti per gestire i filtri
+        col_reset, col_info = st.columns([1, 3])
+        with col_reset:
+            if st.button("🔄 Reset filtri", key="reset_filters"):
+                # Reset tutti i filtri
+                st.session_state["filtro_tipo_neve"] = ""
+                st.session_state["filtro_priorita"] = []
+                st.session_state["filtro_solo_cons"] = False
+                # Reset slider ranges
+                for key in list(st.session_state.keys()):
+                    if key.startswith("temp_range_") or key.startswith("hum_range_"):
+                        del st.session_state[key]
+                st.rerun()
 
-        # --- Applica filtri ---
+        # --- Applica filtri automaticamente (non serve più il pulsante) ---
         df_filtrato = df.copy()
-        if apply_clicked:
-            if luogo_sel and col_luogo:
-                df_filtrato = df_filtrato[df_filtrato[col_luogo].isin(luogo_sel)]
-            if tipo_neve and col_neve:
-                df_filtrato = df_filtrato[df_filtrato[col_neve].astype(str).str.contains(tipo_neve, case=False, na=False)]
-            if col_prior and 'priority_filter' in locals() and priority_filter:
-                df_filtrato[col_prior] = df_filtrato[col_prior].astype(str)
-                df_filtrato = df_filtrato[df_filtrato[col_prior].isin(priority_filter)]
-            if temp_field and temp_range:
-                s = pd.to_numeric(df_filtrato[temp_field], errors="coerce")
+        filtri_attivi = []
+        
+        # Filtro per luogo
+        if luogo_sel and col_luogo and len(luogo_sel) > 0:
+            df_filtrato = df_filtrato[df_filtrato[col_luogo].isin(luogo_sel)]
+            filtri_attivi.append(f"📍 Luogo: {', '.join(luogo_sel)}")
+        
+        # Filtro per tipo neve
+        if tipo_neve and col_neve and tipo_neve.strip():
+            df_filtrato = df_filtrato[df_filtrato[col_neve].astype(str).str.contains(tipo_neve, case=False, na=False)]
+            filtri_attivi.append(f"❄️ Tipo neve: {tipo_neve}")
+        
+        # Filtro per priorità
+        if col_prior and priority_filter and len(priority_filter) > 0:
+            df_filtrato[col_prior] = df_filtrato[col_prior].astype(str)
+            df_filtrato = df_filtrato[df_filtrato[col_prior].isin(priority_filter)]
+            filtri_attivi.append(f"🏆 Priorità: {', '.join(priority_filter)}")
+        
+        # Filtro per temperatura
+        if temp_field and temp_range:
+            s = pd.to_numeric(df_filtrato[temp_field], errors="coerce")
+            # Controlla se il range è diverso dal range completo
+            s_min = float(s.min())
+            s_max = float(s.max())
+            if temp_range[0] > s_min or temp_range[1] < s_max:
                 df_filtrato = df_filtrato[(s >= temp_range[0]) & (s <= temp_range[1])]
-            if hum_field and hum_range:
-                s = pd.to_numeric(df_filtrato[hum_field], errors="coerce")
+                filtri_attivi.append(f"🌡️ {temp_field}: {temp_range[0]:.1f} - {temp_range[1]:.1f}")
+        
+        # Filtro per umidità
+        if hum_field and hum_range:
+            s = pd.to_numeric(df_filtrato[hum_field], errors="coerce")
+            # Controlla se il range è diverso dal range completo
+            s_min = float(s.min())
+            s_max = float(s.max())
+            if hum_range[0] > s_min or hum_range[1] < s_max:
                 df_filtrato = df_filtrato[(s >= hum_range[0]) & (s <= hum_range[1])]
-            if solo_cons and col_cons:
-                df_filtrato = df_filtrato[df_filtrato[col_cons].notna()]
-
-            if col_data and not df_filtrato.empty:
-                try:
-                    df[col_data] = pd.to_datetime(df[col_data], errors="coerce").dt.date
-                    df_filtrato[col_data] = pd.to_datetime(df_filtrato[col_data], errors="coerce").dt.date
-                    giorni_trovati = df_filtrato[col_data].dropna().unique().tolist()
-                    df_filtrato = df[df[col_data].isin(giorni_trovati)]
-                except Exception:
-                    pass
+                filtri_attivi.append(f"💧 {hum_field}: {hum_range[0]:.1f} - {hum_range[1]:.1f}")
+        
+        # Filtro per considerazioni
+        if solo_cons and col_cons:
+            df_filtrato = df_filtrato[df_filtrato[col_cons].notna()]
+            filtri_attivi.append("📝 Solo con considerazioni")
+        
+        # Gestione filtri per data (se necessario)
+        if col_data and not df_filtrato.empty:
+            try:
+                df[col_data] = pd.to_datetime(df[col_data], errors="coerce").dt.date
+                df_filtrato[col_data] = pd.to_datetime(df_filtrato[col_data], errors="coerce").dt.date
+                giorni_trovati = df_filtrato[col_data].dropna().unique().tolist()
+                df_filtrato = df[df[col_data].isin(giorni_trovati)]
+            except Exception:
+                pass
 
         # --- Ricerca globale ---
         st.markdown("<h3 style='color: #00d4ff; margin-top: 2rem; margin-bottom: 1rem;'>🔎 Ricerca globale</h3>", unsafe_allow_html=True)
-        global_search = st.text_input("🔎 Cerca in tutto il file", key="global_search")
-        search_clicked = st.button("🔍 Cerca", key="search_btn")
+        global_search = st.text_input("🔎 Cerca in tutto il file", key="global_search", 
+                                      help="Cerca il testo in tutte le colonne del dataset filtrato")
         
-        if search_clicked and global_search:
+        # Applica ricerca globale automaticamente se c'è testo
+        if global_search and global_search.strip():
             mask = pd.Series(False, index=df_filtrato.index)
             for c in df_filtrato.columns:
                 mask |= df_filtrato[c].astype(str).str.contains(global_search, case=False, na=False)
             df_filtrato = df_filtrato[mask]
+            filtri_attivi.append(f"🔎 Ricerca: '{global_search}'")
+        
+        # Mostra filtri attivi (dopo aver applicato tutti i filtri incluso la ricerca)
+        if filtri_attivi:
+            st.markdown(f"""
+            <div style='background: rgba(0,212,255,0.15); padding: 1rem; border-radius: 12px; border: 1px solid rgba(0,212,255,0.3); margin: 1rem 0;'>
+                <h4 style='color: #00d4ff; margin: 0 0 0.5rem 0;'>✅ Filtri attivi:</h4>
+                <div style='color: #ffffff; font-weight: 500;'>
+                    {' • '.join(filtri_attivi)}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
         # --- Risultati con priorità evidenziate ---
         st.markdown(f"<h3 style='color: #00d4ff; margin-top: 2rem;'>📊 Risultati trovati: <span style='color: #00fff9; font-weight: 900;'>{len(df_filtrato)}</span></h3>", unsafe_allow_html=True)
