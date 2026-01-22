@@ -531,7 +531,11 @@ class api:
                         
             client_computed = hmac.new(key.encode('utf-8'), response.text.encode('utf-8'), hashlib.sha256).hexdigest()
             
-            signature = response.headers["signature"]
+            signature = response.headers.get("signature")
+            if not signature:
+                print("⚠️ Nessuna signature ricevuta dal server")
+                print("Risposta:", response.text)
+                return response.text
 
             if not os.path.exists("C:\\ProgramData\\KeyAuth"):
                 os.makedirs("C:\\ProgramData\\KeyAuth")
