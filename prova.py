@@ -1329,16 +1329,6 @@ def main_app():
         if solo_cons and col_cons:
             df_filtrato = df_filtrato[df_filtrato[col_cons].notna()]
             filtri_attivi.append("📝 Solo con considerazioni")
-        
-        # Gestione filtri per data (se necessario)
-        if col_data and not df_filtrato.empty:
-            try:
-                df[col_data] = pd.to_datetime(df[col_data], errors="coerce").dt.date
-                df_filtrato[col_data] = pd.to_datetime(df_filtrato[col_data], errors="coerce").dt.date
-                giorni_trovati = df_filtrato[col_data].dropna().unique().tolist()
-                df_filtrato = df[df[col_data].isin(giorni_trovati)]
-            except Exception:
-                pass
 
         # --- Ricerca globale ---
         st.markdown("<h3 style='color: #00d4ff; margin-top: 2rem; margin-bottom: 1rem;'>🔎 Ricerca globale</h3>", unsafe_allow_html=True)
