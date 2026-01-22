@@ -1321,7 +1321,15 @@ def main_app():
         
         # Filtro per umidità (applica solo se attivo)
         if hum_field and hum_range and hum_attivo:
-            s = pd.to_numeric(df_filtrato[hum_field], errors="coerce")
+            s = (
+                df_filtrato[hum_field]
+                .astype(str)
+                .str.replace(",", ".", regex=False)
+                .str.replace("%", "", regex=False)
+                .str.strip()
+            )   
+            s = pd.to_numeric(s, errors="coerce")
+
             df_filtrato = df_filtrato[(s >= hum_range[0]) & (s <= hum_range[1])]
             filtri_attivi.append(f"💧 {hum_field}: {hum_range[0]:.1f} - {hum_range[1]:.1f}")
         
