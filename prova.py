@@ -292,7 +292,7 @@ if "saved_password" not in st.session_state:
 # Data functions
 # -------------------------
 @st.cache_data
-def load_data(path="STRUTTURE (1).csv"):
+def load_data(path="strutture.csv"):
     try:
         df = pd.read_csv(path)
         return df
@@ -300,7 +300,7 @@ def load_data(path="STRUTTURE (1).csv"):
         st.error(f"Errore lettura CSV '{path}': {e}")
         return None
 
-def save_data(df, path="STRUTTURE (1).csv"):
+def save_data(df, path="strutture.csv"):
     try:
         df.to_csv(path, index=False)
         return True
@@ -840,7 +840,7 @@ def main_app():
 
         df = load_data()
         if df is None:
-            st.markdown("<div style='background: linear-gradient(135deg, #00d4ff 0%, #00fff9 100%); padding: 1.5rem; border-radius: 12px; color: #1a1a2e; font-weight: 700; text-align: center;'>📊 Nessun dataset disponibile. Carica STRUTTURE (1).csv</div>", unsafe_allow_html=True)
+            st.markdown("<div style='background: linear-gradient(135deg, #00d4ff 0%, #00fff9 100%); padding: 1.5rem; border-radius: 12px; color: #1a1a2e; font-weight: 700; text-align: center;'>📊 Nessun dataset disponibile. Carica strutture.csv</div>", unsafe_allow_html=True)
             st.stop()
 
         # Pulizia colonne non necessarie
